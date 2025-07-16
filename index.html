@@ -638,7 +638,7 @@
     </div>
   </div>
 
-  <!-- 在 <body> 末尾 </body> 前添加同步状态div -->
+  <!-- 在 <body> 末尾动态插入 autoSyncStatus 元素，防止被覆盖 -->
   <div id="autoSyncStatus" style="position:fixed;top:20px;right:20px;z-index:9999;display:none;pointer-events:none;">
     <span id="autoSyncIcon" class="fa fa-cloud text-info"></span>
     <span id="autoSyncText" class="ml-2 text-info font-medium"></span>
@@ -870,7 +870,7 @@
         if (autoSyncTimer) clearTimeout(autoSyncTimer);
         autoSyncTimer = setTimeout(() => {
           authenticate(saveToDrive);
-        }, 5000); // 5秒内无新变动才同步
+        }, 1500); // 1.5秒内无新变动才同步
       }
     }
     
@@ -1682,6 +1682,7 @@
     
     // 保存数据到 Google Drive
     async function saveToDrive() {
+      console.log('[AutoSync] saveToDrive called');
       showAutoSyncStatus('同步中...', 'info');
       try {
         const data = {
@@ -1710,6 +1711,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: fileContent
           });
+          console.log('[AutoSync] 已更新到 Google Drive');
           showAutoSyncStatus('已自动同步到云端', 'success');
         } else {
           // 新建
@@ -1734,9 +1736,11 @@
             headers: { 'Content-Type': 'multipart/mixed; boundary="' + boundary + '"' },
             body: multipartRequestBody
           });
+          console.log('[AutoSync] 已新建到 Google Drive');
           showAutoSyncStatus('已自动同步到云端', 'success');
         }
       } catch (error) {
+        console.error('[AutoSync] 同步失败', error);
         showAutoSyncStatus('同步失败', 'danger');
       }
     }
@@ -2088,6 +2092,7 @@
 
     // 在 <script> 里添加状态显示函数
     function showAutoSyncStatus(msg, type = 'info') {
+      console.log('[AutoSyncStatus]', msg, type);
       const el = document.getElementById('autoSyncStatus');
       const icon = document.getElementById('autoSyncIcon');
       const text = document.getElementById('autoSyncText');
