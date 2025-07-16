@@ -115,7 +115,22 @@
     <main class="flex-grow container mx-auto px-4 py-6">
       <!-- 仪表盘 -->
       <section class="mb-8">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">物品总价值</p>
+                <h3 id="totalValue" class="text-3xl font-bold text-gray-900 mt-1">¥0.00</h3>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-info/10 flex items-center justify-center">
+                <i class="fa fa-jpy text-info text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center text-sm">
+              <i class="fa fa-info-circle text-info mr-1"></i>
+              <span class="text-info font-medium">库存现值</span>
+            </div>
+          </div>
           <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
             <div class="flex justify-between items-start">
               <div>
@@ -1511,6 +1526,8 @@
     function updateDashboard() {
       // 计算总库存
       const totalDolls = dolls.reduce((sum, doll) => sum + doll.quantity, 0);
+      // 计算物品总价值
+      const totalValue = dolls.reduce((sum, doll) => sum + doll.quantity * doll.purchasePrice * EXCHANGE_RATE, 0);
       
       // 计算今日销售额
       const today = new Date();
@@ -1531,6 +1548,7 @@
       
       // 更新仪表盘
       document.getElementById('totalDolls').textContent = totalDolls;
+      document.getElementById('totalValue').textContent = `¥${totalValue.toFixed(2)}`;
       document.getElementById('todaySales').textContent = `¥${todaySalesAmount.toFixed(2)}`;
       document.getElementById('totalProfit').textContent = `¥${totalProfit.toFixed(2)}`;
       
