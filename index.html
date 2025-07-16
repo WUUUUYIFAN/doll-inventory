@@ -308,6 +308,17 @@
                   <span class="text-gray-600">总利润</span>
                   <span class="text-lg font-bold text-success" id="totalProfitAmount">¥0.00</span>
                 </div>
+                <div class="flex justify-between items-center mt-2">
+                  <span class="flex items-center text-gray-600">
+                    <i class="fa fa-credit-card text-danger mr-2"></i>
+                    其他支出
+                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg font-medium text-danger" id="totalExpensesAmount">¥0.00</span>
+                    <button id="manageExpensesBtn" class="ml-2 px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs">管理</button>
+                  </div>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">总利润已扣除其他支出</div>
               </div>
             </div>
           </div>
@@ -404,13 +415,12 @@
         
         <div class="mb-4">
           <label for="sellDollSearch" class="block text-sm font-medium text-gray-700 mb-1">选择娃娃</label>
-          <div class="relative">
-            <input type="text" id="sellDollSearch" placeholder="搜索可用娃娃..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300">
+          <div class="relative" style="width:100%;max-width:100%;">
+            <input type="text" id="sellDollSearch" placeholder="搜索可用娃娃..." class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300">
             <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-          </div>
-          
-          <div id="sellDollDropdown" class="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden">
-            <!-- 动态内容 -->
+            <div id="sellDollDropdown" class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-20 max-h-56 overflow-y-auto hidden transition-all duration-200" style="box-shadow:0 8px 32px #0002;">
+              <!-- 动态内容 -->
+            </div>
           </div>
         </div>
         
@@ -559,6 +569,54 @@
     </div>
   </div>
 
+  <!-- 支出管理模态框 -->
+  <div id="expensesModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-900">管理其他支出</h3>
+        <button id="closeExpensesModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="px-6 py-4">
+        <form id="expenseForm" class="mb-4 flex flex-col gap-2">
+          <input type="hidden" id="expenseId">
+          <div>
+            <label class="block text-sm text-gray-700 mb-1">名称</label>
+            <input type="text" id="expenseName" class="w-full px-3 py-2 border border-gray-300 rounded" required>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-700 mb-1">金额 (¥)</label>
+            <input type="number" id="expenseAmount" min="0.01" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded" required>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-700 mb-1">备注 (可选)</label>
+            <input type="text" id="expenseRemark" class="w-full px-3 py-2 border border-gray-300 rounded">
+          </div>
+          <div class="flex justify-end gap-2 mt-2">
+            <button type="button" id="cancelExpenseBtn" class="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50">取消</button>
+            <button type="submit" class="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90">保存</button>
+          </div>
+        </form>
+        <div class="overflow-y-auto max-h-48">
+          <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-2 py-1 text-left">名称</th>
+                <th class="px-2 py-1 text-left">金额</th>
+                <th class="px-2 py-1 text-left">备注</th>
+                <th class="px-2 py-1 text-left">操作</th>
+              </tr>
+            </thead>
+            <tbody id="expensesTableBody" class="bg-white divide-y divide-gray-200">
+              <!-- 动态内容 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 全局数据
     let dolls = [];
@@ -569,6 +627,7 @@
     let dollsPerPage = 10;
     let salesCurrentPage = 1;
     let salesPerPage = 10;
+    let expenses = [];
 
     // Google Drive 新版 GIS 认证参数
     const CLIENT_ID = '504867290907-2j516vg9mmte4c0np7n3th1v1aersh0s.apps.googleusercontent.com'; // TODO: 替换为你的client_id
@@ -744,6 +803,7 @@
       const savedSales = localStorage.getItem('sales');
       const savedLogs = localStorage.getItem('logs');
       const savedExchangeRate = localStorage.getItem('exchangeRate');
+      const savedExpenses = localStorage.getItem('expenses');
       
       // 增强容错
       if (savedDolls) {
@@ -757,6 +817,12 @@
       if (savedSales) sales = JSON.parse(savedSales);
       if (savedLogs) logs = JSON.parse(savedLogs);
       if (savedExchangeRate) EXCHANGE_RATE = parseFloat(savedExchangeRate);
+      if (savedExpenses) {
+        try {
+          expenses = JSON.parse(savedExpenses);
+          if (!Array.isArray(expenses)) expenses = [];
+        } catch(e) { expenses = []; }
+      }
       
       // 更新汇率显示
       document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
@@ -770,6 +836,7 @@
       localStorage.setItem('sales', JSON.stringify(sales));
       localStorage.setItem('logs', JSON.stringify(logs));
       localStorage.setItem('exchangeRate', EXCHANGE_RATE.toString());
+      localStorage.setItem('expenses', JSON.stringify(expenses));
       saveHistorySnapshot();
     }
     
@@ -1081,30 +1148,36 @@
       
       if (filteredDolls.length === 0) {
         const item = document.createElement('div');
-        item.className = 'px-4 py-2 text-gray-500 text-sm';
+        item.className = 'px-4 py-3 text-gray-400 text-sm text-center select-none';
         item.textContent = '没有找到匹配的娃娃';
         dropdown.appendChild(item);
       } else {
-        filteredDolls.forEach(doll => {
+        filteredDolls.forEach((doll, idx) => {
           const item = document.createElement('div');
-          item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
+          item.className = 'px-4 py-3 hover:bg-primary/10 cursor-pointer text-base rounded transition-all duration-150';
           item.innerHTML = `
-            <div class="font-medium">${doll.name}</div>
-            <div class="text-xs text-gray-500">库存: ${doll.quantity} | 位置: ${doll.location} | 进价: $${doll.purchasePrice.toFixed(2)}</div>
+            <div class="font-semibold text-gray-900 flex items-center gap-2">
+              <i class="fa fa-cube text-primary"></i> ${doll.name}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">库存: <span class="font-bold">${doll.quantity}</span> | 位置: ${doll.location} | 进价: <span class="text-primary">$${doll.purchasePrice.toFixed(2)}</span></div>
           `;
-          
           item.addEventListener('click', () => {
             document.getElementById('sellDollSearch').value = doll.name;
             document.getElementById('sellDollId').value = doll.id;
             document.getElementById('sellDollDropdown').classList.add('hidden');
             document.getElementById('sellQuantity').focus();
           });
-          
+          if (idx !== 0) {
+            item.style.borderTop = '1px solid #f1f5f9';
+          }
           dropdown.appendChild(item);
         });
       }
       
       dropdown.classList.remove('hidden');
+      const input = document.getElementById('sellDollSearch');
+      // 动态设置下拉宽度和输入框一致
+      dropdown.style.width = input.offsetWidth + 'px';
     }
     
     // 记录销售
@@ -1452,7 +1525,9 @@
       const todaySalesAmount = todaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
       
       // 计算总利润
-      const totalProfit = sales.reduce((sum, sale) => sum + sale.profit, 0);
+      const salesProfit = sales.reduce((sum, sale) => sum + sale.profit, 0);
+      const totalExpenses = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+      const totalProfit = salesProfit - totalExpenses;
       
       // 更新仪表盘
       document.getElementById('totalDolls').textContent = totalDolls;
@@ -1466,6 +1541,7 @@
       document.getElementById('totalSalesAmount').textContent = `¥${totalSales.toFixed(2)}`;
       document.getElementById('totalCostAmount').textContent = `¥${totalCost.toFixed(2)}`;
       document.getElementById('totalProfitAmount').textContent = `¥${totalProfit.toFixed(2)}`;
+      document.getElementById('totalExpensesAmount').textContent = `¥${totalExpenses.toFixed(2)}`;
     }
     
     // 添加日志
@@ -1763,6 +1839,90 @@
       document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
       closeHistoryModal();
       showToast('成功', '已恢复历史快照', 'success');
+    }
+
+    // 支出管理相关
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('manageExpensesBtn').addEventListener('click', showExpensesModal);
+      document.getElementById('closeExpensesModalBtn').addEventListener('click', closeExpensesModal);
+      document.getElementById('cancelExpenseBtn').addEventListener('click', closeExpensesModal);
+      document.getElementById('expenseForm').addEventListener('submit', saveExpense);
+    });
+    function showExpensesModal() {
+      document.getElementById('expenseForm').reset();
+      document.getElementById('expenseId').value = '';
+      updateExpensesTable();
+      document.getElementById('expensesModal').classList.remove('hidden');
+    }
+    function closeExpensesModal() {
+      document.getElementById('expensesModal').classList.add('hidden');
+    }
+    function saveExpense(e) {
+      e.preventDefault();
+      const id = document.getElementById('expenseId').value;
+      const name = document.getElementById('expenseName').value.trim();
+      const amount = parseFloat(document.getElementById('expenseAmount').value);
+      const remark = document.getElementById('expenseRemark').value.trim();
+      if (!name || isNaN(amount) || amount <= 0) {
+        showToast('错误', '请填写有效的支出名称和金额', 'error');
+        return;
+      }
+      if (id) {
+        // 编辑
+        const idx = expenses.findIndex(exp => exp.id === id);
+        if (idx !== -1) {
+          expenses[idx] = { ...expenses[idx], name, amount, remark };
+          showToast('成功', '支出已更新', 'success');
+        }
+      } else {
+        // 新增
+        expenses.push({ id: Date.now().toString(), name, amount, remark });
+        showToast('成功', '支出已添加', 'success');
+      }
+      saveData();
+      updateDashboard();
+      updateExpensesTable();
+      document.getElementById('expenseForm').reset();
+      document.getElementById('expenseId').value = '';
+    }
+    function updateExpensesTable() {
+      const tbody = document.getElementById('expensesTableBody');
+      tbody.innerHTML = '';
+      if (expenses.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="4" class="px-2 py-2 text-center text-gray-500">暂无支出</td>`;
+        tbody.appendChild(row);
+        return;
+      }
+      expenses.forEach(exp => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-2 py-1">${exp.name}</td>
+          <td class="px-2 py-1">¥${parseFloat(exp.amount).toFixed(2)}</td>
+          <td class="px-2 py-1">${exp.remark || ''}</td>
+          <td class="px-2 py-1">
+            <button class="text-primary hover:text-primary/80 mr-2" onclick="editExpense('${exp.id}')"><i class="fa fa-pencil"></i></button>
+            <button class="text-danger hover:text-danger/80" onclick="deleteExpense('${exp.id}')"><i class="fa fa-trash"></i></button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+    function editExpense(id) {
+      const exp = expenses.find(e => e.id === id);
+      if (!exp) return;
+      document.getElementById('expenseId').value = exp.id;
+      document.getElementById('expenseName').value = exp.name;
+      document.getElementById('expenseAmount').value = exp.amount;
+      document.getElementById('expenseRemark').value = exp.remark || '';
+    }
+    function deleteExpense(id) {
+      if (!confirm('确定要删除该支出吗？')) return;
+      expenses = expenses.filter(e => e.id !== id);
+      saveData();
+      updateDashboard();
+      updateExpensesTable();
+      showToast('成功', '支出已删除', 'success');
     }
   </script>
 </body>
