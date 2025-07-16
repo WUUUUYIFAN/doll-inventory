@@ -105,6 +105,9 @@
               <button id="googleDriveLoadBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
                 <i class="fa fa-cloud-download mr-2"></i> 从 Google Drive 加载
               </button>
+              <button id="googleDriveSwitchAccountBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                <i class="fa fa-user-circle mr-2"></i> 切换Google账号
+              </button>
             </div>
           </div>
         </div>
@@ -655,6 +658,7 @@
     let salesCurrentPage = 1;
     let salesPerPage = 10;
     let expenses = [];
+    let autoSyncTimer = null;
 
     // Google Drive 新版 GIS 认证参数
     const CLIENT_ID = '504867290907-2j516vg9mmte4c0np7n3th1v1aersh0s.apps.googleusercontent.com'; // TODO: 替换为你的client_id
@@ -822,6 +826,15 @@
       // 历史记录UI逻辑
       document.getElementById('historyBtn').addEventListener('click', showHistoryModal);
       document.getElementById('closeHistoryModalBtn').addEventListener('click', closeHistoryModal);
+      // 在 DOMContentLoaded 事件中为切换账号按钮绑定事件
+      document.getElementById('googleDriveSwitchAccountBtn').addEventListener('click', function() {
+        if (!gapiInited || !gisInited) {
+          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          return;
+        }
+        // 强制弹出账号选择
+        tokenClient.requestAccessToken({prompt: 'select_account'});
+      });
     });
     
     // 从localStorage加载数据
@@ -869,8 +882,14 @@
       if (gapiInited && gisInited) {
         if (autoSyncTimer) clearTimeout(autoSyncTimer);
         autoSyncTimer = setTimeout(() => {
-          authenticate(saveToDrive);
-        }, 1500); // 1.5秒内无新变动才同步
+          const token = gapi.client.getToken && gapi.client.getToken();
+          if (token && token.access_token) {
+            saveToDrive();
+          } else {
+            // 自动同步时无token则跳过，不弹窗
+            console.log('[AutoSync] 无token，自动同步跳过');
+          }
+        }, 1500);
       }
     }
     
@@ -1076,24 +1095,48 @@
     // 更新分页按钮状态
     function updatePaginationButtons(totalItems) {
       const totalPages = Math.ceil(totalItems / dollsPerPage);
-      
-      // 重置所有分页按钮
-      [1, 2, 3].forEach(pageNum => {
-        const btn = document.getElementById(`page${pageNum}`);
-        btn.disabled = false;
-        btn.classList.remove('bg-primary', 'text-white');
-        
-        if (pageNum === currentPage) {
-          btn.classList.add('bg-primary', 'text-white');
+      // 获取按钮
+      const btns = [
+        document.getElementById('page1'),
+        document.getElementById('page2'),
+        document.getElementById('page3')
+      ];
+      // 计算当前应显示的页码
+      let pages = [];
+      if (totalPages <= 3) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+        // 隐藏多余按钮
+        for (let i = totalPages; i < 3; i++) {
+          btns[i].style.display = 'none';
         }
-        
-        if (pageNum > totalPages) {
-          btn.disabled = true;
-          btn.classList.remove('bg-primary', 'text-white');
+      } else {
+        if (currentPage <= 2) {
+          pages = [1, 2, 3];
+        } else if (currentPage >= totalPages - 1) {
+          pages = [totalPages - 2, totalPages - 1, totalPages];
+        } else {
+          pages = [currentPage - 1, currentPage, currentPage + 1];
+        }
+        // 所有按钮都显示
+        btns.forEach(btn => btn.style.display = '');
+      }
+      // 设置按钮文本和高亮
+      btns.forEach((btn, idx) => {
+        if (pages[idx]) {
+          btn.textContent = pages[idx];
+          btn.disabled = (pages[idx] === currentPage);
+          if (pages[idx] === currentPage) {
+            btn.classList.add('bg-primary', 'text-white');
+          } else {
+            btn.classList.remove('bg-primary', 'text-white');
+          }
+          btn.onclick = () => changePage(pages[idx]);
+          btn.style.display = '';
+        } else {
+          btn.style.display = 'none';
         }
       });
-      
-      // 更新上一页和下一页按钮
+      // 上一页、下一页按钮
       document.getElementById('prevPage').disabled = currentPage === 1;
       document.getElementById('nextPage').disabled = currentPage >= totalPages;
     }
