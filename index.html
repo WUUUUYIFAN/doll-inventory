@@ -859,6 +859,13 @@
       localStorage.setItem('exchangeRate', EXCHANGE_RATE.toString());
       localStorage.setItem('expenses', JSON.stringify(expenses));
       saveHistorySnapshot();
+      // 自动同步到 Google Drive（防抖）
+      if (gapiInited && gisInited) {
+        if (autoSyncTimer) clearTimeout(autoSyncTimer);
+        autoSyncTimer = setTimeout(() => {
+          authenticate(saveToDrive);
+        }, 5000); // 5秒内无新变动才同步
+      }
     }
     
     // 显示添加娃娃表单
