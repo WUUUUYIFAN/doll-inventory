@@ -863,7 +863,6 @@
       document.getElementById('modalTitle').textContent = '添加娃娃';
       document.getElementById('dollForm').reset();
       document.getElementById('dollId').value = '';
-      updateDollNameList();
       document.getElementById('dollModal').classList.remove('hidden');
     }
     
@@ -935,7 +934,6 @@
     function showEditDollForm(id) {
       const doll = dolls.find(d => d.id === id);
       if (!doll) return;
-      
       document.getElementById('modalTitle').textContent = '编辑娃娃';
       document.getElementById('dollId').value = doll.id;
       document.getElementById('dollName').value = doll.name;
@@ -943,7 +941,6 @@
       document.getElementById('dollLocation').value = doll.location;
       document.getElementById('dollPurchasePrice').value = doll.purchasePrice;
       document.getElementById('dollDescription').value = doll.description || '';
-      updateDollNameList();
       document.getElementById('dollModal').classList.remove('hidden');
     }
     
