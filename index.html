@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>娃娃库存管理系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
+  <script src="https://apis.google.com/js/api.js?onload=gapiLoaded" async defer></script>
+  
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#6366F1',
+            success: '#10B981',
+            danger: '#EF4444',
+            warning: '#F59E0B',
+            info: '#06B6D4',
+            dark: '#1F2937',
+            light: '#F9FAFB'
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .hover-scale {
+        transition: transform 0.3s ease;
+      }
+      .hover-scale:hover {
+        transform: scale(1.02);
+      }
+      .transition-all-300 {
+        transition: all 0.3s ease;
+      }
+      .bg-gradient-primary {
+        background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-inter">
+  <!-- 全局提示 -->
+  <div id="toast" class="fixed top-4 right-4 bg-white rounded-lg shadow-lg p-4 transform translate-x-full transition-all duration-300 z-50 flex items-center max-w-sm">
+    <div id="toastIcon" class="mr-3 w-8 h-8 flex items-center justify-center rounded-full bg-success">
+      <i class="fa fa-check text-white"></i>
+    </div>
+    <div>
+      <h3 id="toastTitle" class="font-medium text-gray-900">成功</h3>
+      <p id="toastMessage" class="text-sm text-gray-600">操作已完成</p>
+    </div>
+  </div>
+
+  <!-- 主容器 -->
+  <div class="min-h-screen flex flex-col">
+    <!-- 顶部导航 -->
+    <header class="bg-gradient-primary text-white shadow-md">
+      <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <i class="fa fa-shopping-bag text-2xl"></i>
+          <h1 class="text-xl md:text-2xl font-bold">娃娃库存管理系统</h1>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+          <button id="exportProfitBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
+            <i class="fa fa-download mr-2"></i>
+            <span class="hidden sm:inline">导出利润</span>
+          </button>
+          
+          <div class="relative group">
+            <button class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
+              <i class="fa fa-cog mr-2"></i>
+              <span class="hidden sm:inline">设置</span>
+            </button>
+            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+              <button id="changeExchangeRateBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                <i class="fa fa-money mr-2"></i> 设置汇率
+              </button>
+            </div>
+          </div>
+          
+          <div class="relative" id="cloudSyncGroup">
+            <button id="cloudSyncBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
+              <i class="fa fa-cloud mr-2"></i>
+              <span class="hidden sm:inline">云同步</span>
+            </button>
+            <div id="cloudSyncMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden">
+              <button id="googleDriveSaveBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                <i class="fa fa-cloud-upload mr-2"></i> 同步到 Google Drive
+              </button>
+              <button id="googleDriveLoadBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                <i class="fa fa-cloud-download mr-2"></i> 从 Google Drive 加载
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="flex-grow container mx-auto px-4 py-6">
+      <!-- 仪表盘 -->
+      <section class="mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">总库存</p>
+                <h3 id="totalDolls" class="text-3xl font-bold text-gray-900 mt-1">0</h3>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <i class="fa fa-cubes text-primary text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center text-sm">
+              <i class="fa fa-arrow-up text-success mr-1"></i>
+              <span class="text-success font-medium">12% 较上月</span>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">今日销售额</p>
+                <h3 id="todaySales" class="text-3xl font-bold text-gray-900 mt-1">¥0.00</h3>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+                <i class="fa fa-line-chart text-success text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center text-sm">
+              <i class="fa fa-arrow-up text-success mr-1"></i>
+              <span class="text-success font-medium">8% 较昨日</span>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">总利润</p>
+                <h3 id="totalProfit" class="text-3xl font-bold text-gray-900 mt-1">¥0.00</h3>
+              </div>
+              <div class="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                <i class="fa fa-money text-warning text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center text-sm">
+              <i class="fa fa-arrow-up text-success mr-1"></i>
+              <span class="text-success font-medium">15% 较上月</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 汇率信息 -->
+      <div class="bg-blue-50 border-l-4 border-primary p-4 mb-6 rounded-r">
+        <div class="flex items-center">
+          <i class="fa fa-exchange text-primary mr-3 text-xl"></i>
+          <div>
+            <p class="text-sm text-gray-600">当前美元兑换人民币汇率</p>
+            <p class="text-lg font-medium text-gray-900" id="exchangeRateValue">6.90</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 库存和销售区域 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左侧：库存列表 -->
+        <div class="lg:col-span-2">
+          <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
+              <h2 class="text-xl font-bold text-gray-900 mb-4 sm:mb-0">娃娃库存</h2>
+              
+              <div class="flex flex-wrap gap-3">
+                <div class="relative">
+                  <input type="text" id="searchInput" placeholder="搜索娃娃..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300 w-full sm:w-auto">
+                  <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                </div>
+                
+                <div class="relative">
+                  <select id="locationFilter" class="pl-4 pr-10 py-2 border border-gray-300 rounded-lg appearance-none focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300 bg-white">
+                    <option value="">所有位置</option>
+                  </select>
+                  <i class="fa fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                </div>
+                
+                <button id="showLowStockBtn" class="px-4 py-2 bg-warning/10 text-warning rounded-lg hover:bg-warning/20 transition-all-300 flex items-center">
+                  <i class="fa fa-exclamation-triangle mr-2"></i>
+                  <span>低库存</span>
+                </button>
+                
+                <button id="showAllDollsBtn" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all-300 flex items-center">
+                  <i class="fa fa-refresh mr-2"></i>
+                  <span>全部</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="flex justify-between items-center mb-4">
+              <div class="text-sm text-gray-500">
+                显示 <span id="currentDollsCount">0</span> 个娃娃，共 <span id="totalDollsCount">0</span> 个
+              </div>
+              
+              <div class="flex items-center">
+                <button id="addDollBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all-300 flex items-center">
+                  <i class="fa fa-plus mr-2"></i>
+                  <span>添加娃娃</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">库存</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">位置</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">进价 ($)</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后更新</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="dollsTableBody" class="bg-white divide-y divide-gray-200">
+                  <!-- 动态内容 -->
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- 分页 -->
+            <div class="flex items-center justify-between mt-6">
+              <div class="text-sm text-gray-500">
+                显示 <span id="paginationRange">0-0</span> 条，共 <span id="paginationTotal">0</span> 条
+              </div>
+              
+              <div class="flex space-x-1">
+                <button id="prevPage" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">
+                  <i class="fa fa-chevron-left"></i>
+                </button>
+                
+                <button id="page1" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">1</button>
+                <button id="page2" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">2</button>
+                <button id="page3" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">3</button>
+                
+                <button id="nextPage" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">
+                  <i class="fa fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 右侧：销售和利润 -->
+        <div class="lg:col-span-1">
+          <!-- 销售按钮 -->
+          <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+            <button id="sellBtn" class="w-full py-4 bg-success text-white rounded-lg hover:bg-success/90 transition-all-300 flex items-center justify-center">
+              <i class="fa fa-shopping-cart text-xl mr-2"></i>
+              <span class="text-lg font-medium">记录销售</span>
+            </button>
+          </div>
+          
+          <!-- 最近销售记录 -->
+          <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold text-gray-900">最近销售</h2>
+              <button id="viewAllSalesBtn" class="text-primary hover:text-primary/80 text-sm font-medium transition-all-300">
+                查看全部
+              </button>
+            </div>
+            
+            <div id="salesContainer">
+              <!-- 动态内容 -->
+            </div>
+          </div>
+          
+          <!-- 利润汇总 -->
+          <div class="bg-white rounded-xl shadow-md p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">利润汇总</h2>
+            
+            <div class="space-y-4">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">总销售额</span>
+                <span class="text-lg font-medium text-gray-900" id="totalSalesAmount">¥0.00</span>
+              </div>
+              
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">总成本</span>
+                <span class="text-lg font-medium text-gray-900" id="totalCostAmount">¥0.00</span>
+              </div>
+              
+              <div class="border-t border-gray-200 pt-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-600">总利润</span>
+                  <span class="text-lg font-bold text-success" id="totalProfitAmount">¥0.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-6">
+      <div class="container mx-auto px-4">
+        <div class="flex flex-col md:flex-row justify-between items-center">
+          <div class="mb-4 md:mb-0">
+            <p class="text-sm text-gray-400">© 2025 娃娃库存管理系统. 保留所有权利.</p>
+          </div>
+          
+          <div class="flex space-x-4">
+            <a href="#" class="text-gray-400 hover:text-white transition-all-300">
+              <i class="fa fa-question-circle"></i> 帮助
+            </a>
+            <a href="#" class="text-gray-400 hover:text-white transition-all-300">
+              <i class="fa fa-file-text-o"></i> 文档
+            </a>
+            <a href="#" class="text-gray-400 hover:text-white transition-all-300">
+              <i class="fa fa-envelope"></i> 联系我们
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- 添加/编辑娃娃模态框 -->
+  <div id="dollModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 id="modalTitle" class="text-lg font-bold text-gray-900">添加娃娃</h3>
+        <button id="closeModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <form id="dollForm" class="px-6 py-4">
+        <input type="hidden" id="dollId">
+        
+        <div class="mb-4">
+          <label for="dollName" class="block text-sm font-medium text-gray-700 mb-1">名称</label>
+          <input type="text" id="dollName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="dollQuantity" class="block text-sm font-medium text-gray-700 mb-1">数量</label>
+          <input type="number" id="dollQuantity" min="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="dollLocation" class="block text-sm font-medium text-gray-700 mb-1">存放位置</label>
+          <input type="text" id="dollLocation" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="dollPurchasePrice" class="block text-sm font-medium text-gray-700 mb-1">进价 ($)</label>
+          <input type="number" id="dollPurchasePrice" min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="dollDescription" class="block text-sm font-medium text-gray-700 mb-1">描述 (可选)</label>
+          <textarea id="dollDescription" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300"></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3 mt-6">
+          <button type="button" id="cancelDollBtn" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all-300">
+            取消
+          </button>
+          <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all-300">
+            保存
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 销售模态框 -->
+  <div id="sellModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-900">记录销售</h3>
+        <button id="closeSellModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <form id="sellForm" class="px-6 py-4">
+        <input type="hidden" id="sellDollId">
+        
+        <div class="mb-4">
+          <label for="sellDollSearch" class="block text-sm font-medium text-gray-700 mb-1">选择娃娃</label>
+          <div class="relative">
+            <input type="text" id="sellDollSearch" placeholder="搜索可用娃娃..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300">
+            <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+          </div>
+          
+          <div id="sellDollDropdown" class="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden">
+            <!-- 动态内容 -->
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <label for="sellQuantity" class="block text-sm font-medium text-gray-700 mb-1">销售数量</label>
+          <input type="number" id="sellQuantity" min="1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="sellPrice" class="block text-sm font-medium text-gray-700 mb-1">销售单价 (¥)</label>
+          <input type="number" id="sellPrice" min="0.01" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+        </div>
+        
+        <div class="mb-4">
+          <label for="customerName" class="block text-sm font-medium text-gray-700 mb-1">客户名称 (可选)</label>
+          <input type="text" id="customerName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300">
+        </div>
+        
+        <div class="flex justify-end space-x-3 mt-6">
+          <button type="button" id="cancelSellBtn" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all-300">
+            取消
+          </button>
+          <button type="submit" class="px-4 py-2 bg-success text-white rounded-lg hover:bg-success/90 transition-all-300">
+            确认销售
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 汇率设置模态框 -->
+  <div id="exchangeRateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-900">设置汇率</h3>
+        <button id="closeExchangeRateModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="px-6 py-4">
+        <div class="mb-4">
+          <label for="newExchangeRate" class="block text-sm font-medium text-gray-700 mb-1">当前汇率: <span id="currentExchangeRate">6.90</span></label>
+          <input type="number" id="newExchangeRate" min="0.01" step="0.01" value="6.90" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+          <p class="text-xs text-gray-500 mt-1">1 美元 = X 人民币</p>
+        </div>
+        
+        <div class="flex justify-end space-x-3 mt-6">
+          <button type="button" id="cancelExchangeRateBtn" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all-300">
+            取消
+          </button>
+          <button type="button" id="saveExchangeRateBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all-300">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 所有销售记录模态框 -->
+  <div id="allSalesModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-4xl w-full mx-4 overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-900">所有销售记录</h3>
+        <button id="closeAllSalesModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="p-6 overflow-y-auto flex-grow">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">娃娃名称</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">单价 (CNY)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总价 (CNY)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">成本 (CNY)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">利润 (CNY)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">客户</th>
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody id="allSalesTableBody" class="bg-white divide-y divide-gray-200">
+              <!-- 动态内容 -->
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- 分页 -->
+        <div class="flex items-center justify-between mt-6">
+          <div class="text-sm text-gray-500">
+            显示 <span id="salesPaginationRange">0-0</span> 条，共 <span id="salesPaginationTotal">0</span> 条
+          </div>
+          
+          <div class="flex space-x-1">
+            <button id="salesPrevPage" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">
+              <i class="fa fa-chevron-left"></i>
+            </button>
+            
+            <button id="salesPage1" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">1</button>
+            <button id="salesPage2" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">2</button>
+            <button id="salesPage3" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">3</button>
+            
+            <button id="salesNextPage" class="px-3 py-1 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all-300">
+              <i class="fa fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全局数据
+    let dolls = [];
+    let sales = [];
+    let logs = [];
+    let EXCHANGE_RATE = 6.90;
+    let currentPage = 1;
+    let dollsPerPage = 10;
+    let salesCurrentPage = 1;
+    let salesPerPage = 10;
+
+    // Google Drive 新版 GIS 认证参数
+    const CLIENT_ID = '504867290907-2j516vg9mmte4c0np7n3th1v1aersh0s.apps.googleusercontent.com'; // TODO: 替换为你的client_id
+    const API_KEY = 'AIzaSyBVZ1p8F0UfQh1cO4ycScbI2eZUyFc2CFU'; // TODO: 替换为你的apiKey
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+
+    // gapi 加载后初始化
+    function gapiLoaded() {
+      gapi.load('client', initializeGapiClient);
+    }
+    async function initializeGapiClient() {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+      });
+      gapiInited = true;
+    }
+    // GIS 加载后初始化
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '',
+      });
+      gisInited = true;
+    }
+    // 登录并获取 access_token
+    function authenticate(callback) {
+      tokenClient.callback = async (resp) => {
+        if (resp.error) {
+          // 如果静默失败，尝试弹窗授权
+          if (resp.error === 'popup_closed_by_user' || resp.error === 'access_denied' || resp.error === 'interaction_required') {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+          } else {
+            showToast('错误', 'Google 登录失败: ' + resp.error, 'error');
+          }
+          return;
+        }
+        gapi.client.setToken({ access_token: resp.access_token });
+        callback();
+      };
+      // 先尝试静默授权
+      tokenClient.requestAccessToken({prompt: ''});
+    }
+
+    // DOM 加载完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOMContentLoaded event fired');
+      
+      // 初始化数据
+      loadData();
+      
+      // 添加事件监听器
+      document.getElementById('addDollBtn').addEventListener('click', showAddDollForm);
+      document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+      document.getElementById('cancelDollBtn').addEventListener('click', closeModal);
+      document.getElementById('dollForm').addEventListener('submit', saveDoll);
+      
+      document.getElementById('sellBtn').addEventListener('click', showSellForm);
+      document.getElementById('closeSellModalBtn').addEventListener('click', closeSellModal);
+      document.getElementById('cancelSellBtn').addEventListener('click', closeSellModal);
+      document.getElementById('sellForm').addEventListener('submit', recordSale);
+      document.getElementById('sellDollSearch').addEventListener('input', searchSellDolls);
+      
+      document.getElementById('viewAllSalesBtn').addEventListener('click', showAllSales);
+      document.getElementById('closeAllSalesModalBtn').addEventListener('click', closeAllSalesModal);
+      
+      document.getElementById('changeExchangeRateBtn').addEventListener('click', showExchangeRateModal);
+      document.getElementById('closeExchangeRateModalBtn').addEventListener('click', closeExchangeRateModal);
+      document.getElementById('cancelExchangeRateBtn').addEventListener('click', closeExchangeRateModal);
+      document.getElementById('saveExchangeRateBtn').addEventListener('click', saveExchangeRate);
+      
+      document.getElementById('exportProfitBtn').addEventListener('click', exportProfitData);
+      
+      document.getElementById('showLowStockBtn').addEventListener('click', showLowStockDolls);
+      document.getElementById('showAllDollsBtn').addEventListener('click', showAllDolls);
+      
+      document.getElementById('searchInput').addEventListener('input', searchDolls);
+      document.getElementById('locationFilter').addEventListener('change', filterByLocation);
+      
+      // 分页按钮
+      document.getElementById('prevPage').addEventListener('click', () => changePage(currentPage - 1));
+      document.getElementById('nextPage').addEventListener('click', () => changePage(currentPage + 1));
+      document.getElementById('page1').addEventListener('click', () => changePage(1));
+      document.getElementById('page2').addEventListener('click', () => changePage(2));
+      document.getElementById('page3').addEventListener('click', () => changePage(3));
+      
+      document.getElementById('salesPrevPage').addEventListener('click', () => changeSalesPage(salesCurrentPage - 1));
+      document.getElementById('salesNextPage').addEventListener('click', () => changeSalesPage(salesCurrentPage + 1));
+      document.getElementById('salesPage1').addEventListener('click', () => changeSalesPage(1));
+      document.getElementById('salesPage2').addEventListener('click', () => changeSalesPage(2));
+      document.getElementById('salesPage3').addEventListener('click', () => changeSalesPage(3));
+      
+      // 初始化位置筛选器
+      updateLocationFilter();
+      
+      // 更新仪表盘数据
+      updateDashboard();
+      
+      // 更新库存表格
+      updateDollTable();
+      
+      // 更新销售记录
+      updateSalesList();
+      
+      // 初始化 Google Drive 集成
+      initGoogleDriveIntegration();
+      
+      // 云同步下拉菜单显示控制
+      const cloudSyncGroup = document.getElementById('cloudSyncGroup');
+      const cloudSyncMenu = document.getElementById('cloudSyncMenu');
+      if (cloudSyncGroup && cloudSyncMenu) {
+        cloudSyncGroup.addEventListener('mouseenter', () => {
+          cloudSyncMenu.classList.remove('hidden');
+        });
+        cloudSyncGroup.addEventListener('mouseleave', () => {
+          cloudSyncMenu.classList.add('hidden');
+        });
+      }
+      
+      // Google API 脚本加载回调
+      window.gapiLoaded = gapiLoaded;
+      window.gisLoaded = gisLoaded;
+      // 云同步按钮绑定新版认证
+      document.getElementById('googleDriveSaveBtn').addEventListener('click', function() {
+        if (!gapiInited || !gisInited) {
+          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          return;
+        }
+        authenticate(saveToDrive);
+      });
+      document.getElementById('googleDriveLoadBtn').addEventListener('click', function() {
+        if (!gapiInited || !gisInited) {
+          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          return;
+        }
+        authenticate(loadFromDrive);
+      });
+    });
+    
+    // 从localStorage加载数据
+    function loadData() {
+      const savedDolls = localStorage.getItem('dolls');
+      const savedSales = localStorage.getItem('sales');
+      const savedLogs = localStorage.getItem('logs');
+      const savedExchangeRate = localStorage.getItem('exchangeRate');
+      
+      // 增强容错
+      if (savedDolls) {
+        try {
+          dolls = JSON.parse(savedDolls);
+          if (!Array.isArray(dolls)) dolls = [];
+        } catch(e) {
+          dolls = [];
+        }
+      }
+      if (savedSales) sales = JSON.parse(savedSales);
+      if (savedLogs) logs = JSON.parse(savedLogs);
+      if (savedExchangeRate) EXCHANGE_RATE = parseFloat(savedExchangeRate);
+      
+      // 更新汇率显示
+      document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+    }
+    
+    // 保存数据到localStorage
+    function saveData() {
+      localStorage.setItem('dolls', JSON.stringify(dolls));
+      localStorage.setItem('sales', JSON.stringify(sales));
+      localStorage.setItem('logs', JSON.stringify(logs));
+      localStorage.setItem('exchangeRate', EXCHANGE_RATE.toString());
+    }
+    
+    // 显示添加娃娃表单
+    function showAddDollForm() {
+      document.getElementById('modalTitle').textContent = '添加娃娃';
+      document.getElementById('dollForm').reset();
+      document.getElementById('dollId').value = '';
+      document.getElementById('dollModal').classList.remove('hidden');
+    }
+    
+    // 关闭模态框
+    function closeModal() {
+      document.getElementById('dollModal').classList.add('hidden');
+    }
+    
+    // 保存娃娃
+    function saveDoll(e) {
+      e.preventDefault();
+      
+      const id = document.getElementById('dollId').value;
+      const name = document.getElementById('dollName').value.trim();
+      const quantity = parseInt(document.getElementById('dollQuantity').value);
+      const location = document.getElementById('dollLocation').value.trim();
+      const purchasePrice = parseFloat(document.getElementById('dollPurchasePrice').value);
+      const description = document.getElementById('dollDescription').value.trim();
+      
+      if (!name || isNaN(quantity) || quantity < 0 || !location || isNaN(purchasePrice) || purchasePrice < 0) {
+        showToast('错误', '请填写所有必填字段并确保数值有效', 'error');
+        return;
+      }
+      
+      const timestamp = new Date().toISOString();
+      
+      if (id) {
+        // 更新现有娃娃
+        const index = dolls.findIndex(d => d.id === id);
+        if (index !== -1) {
+          dolls[index] = {
+            ...dolls[index],
+            name,
+            quantity,
+            location,
+            purchasePrice,
+            description,
+            updatedAt: timestamp
+          };
+          addLog(`更新了娃娃: ${name}`);
+          showToast('成功', '娃娃信息已更新', 'success');
+        }
+      } else {
+        // 添加新娃娃
+        const newDoll = {
+          id: Date.now().toString(),
+          name,
+          quantity,
+          location,
+          purchasePrice,
+          description,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        dolls.push(newDoll);
+        console.log('添加新娃娃后 dolls:', dolls); // 调试输出
+        addLog(`添加了新娃娃: ${name}`);
+        showToast('成功', '新娃娃已添加', 'success');
+      }
+      saveData();
+      console.log('保存后 localStorage.getItem(\'dolls\'):', localStorage.getItem('dolls'));
+      updateDollTable();
+      updateDashboard();
+      updateLocationFilter();
+      closeModal();
+    }
+    
+    // 显示编辑娃娃表单
+    function showEditDollForm(id) {
+      const doll = dolls.find(d => d.id === id);
+      if (!doll) return;
+      
+      document.getElementById('modalTitle').textContent = '编辑娃娃';
+      document.getElementById('dollId').value = doll.id;
+      document.getElementById('dollName').value = doll.name;
+      document.getElementById('dollQuantity').value = doll.quantity;
+      document.getElementById('dollLocation').value = doll.location;
+      document.getElementById('dollPurchasePrice').value = doll.purchasePrice;
+      document.getElementById('dollDescription').value = doll.description || '';
+      
+      document.getElementById('dollModal').classList.remove('hidden');
+    }
+    
+    // 删除娃娃
+    function deleteDoll(id) {
+      if (!confirm('确定要删除这个娃娃吗？此操作不可撤销。')) return;
+      
+      const doll = dolls.find(d => d.id === id);
+      if (doll) {
+        dolls = dolls.filter(d => d.id !== id);
+        addLog(`删除了娃娃: ${doll.name}`);
+        showToast('成功', '娃娃已删除', 'success');
+        
+        saveData();
+        updateDollTable();
+        updateDashboard();
+        updateLocationFilter();
+      }
+    }
+    
+    // 更新娃娃表格
+    function updateDollTable(filteredDolls = null) {
+      console.log('当前dolls数据：', dolls); // 调试输出
+      const dollsToDisplay = filteredDolls || dolls;
+      const startIndex = (currentPage - 1) * dollsPerPage;
+      const endIndex = Math.min(startIndex + dollsPerPage, dollsToDisplay.length);
+      const paginatedDolls = dollsToDisplay.slice(startIndex, endIndex);
+      
+      const tableBody = document.getElementById('dollsTableBody');
+      tableBody.innerHTML = '';
+      
+      if (paginatedDolls.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+          <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+            <i class="fa fa-inbox mr-2"></i>没有找到娃娃记录
+          </td>
+        `;
+        tableBody.appendChild(emptyRow);
+      } else {
+        paginatedDolls.forEach(doll => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-gray-50 transition-all-300';
+          
+          // 检查库存状态
+          const isLowStock = doll.quantity <= 5;
+          const stockStatusClass = isLowStock ? 'text-danger' : 'text-gray-900';
+          
+          row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="h-8 w-8 bg-primary/10 rounded-full flex items-center justify-center mr-3">
+                  <i class="fa fa-cube text-primary"></i>
+                </div>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">${doll.name}</div>
+                  <div class="text-xs text-gray-500">ID: ${doll.id.substring(0, 8)}...</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-medium ${stockStatusClass}">${doll.quantity}</div>
+              ${isLowStock ? '<div class="text-xs text-danger">低库存</div>' : ''}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">${doll.location}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">$${doll.purchasePrice.toFixed(2)}</div>
+              <div class="text-xs text-gray-500">¥${(doll.purchasePrice * EXCHANGE_RATE).toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              ${new Date(doll.updatedAt).toLocaleString()}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <button onclick="showEditDollForm('${doll.id}')" class="text-primary hover:text-primary/80 mr-3">
+                <i class="fa fa-pencil"></i> 编辑
+              </button>
+              <button onclick="deleteDoll('${doll.id}')" class="text-danger hover:text-danger/80">
+                <i class="fa fa-trash"></i> 删除
+              </button>
+            </td>
+          `;
+          
+          tableBody.appendChild(row);
+        });
+      }
+      
+      // 更新分页信息
+      document.getElementById('currentDollsCount').textContent = paginatedDolls.length;
+      document.getElementById('totalDollsCount').textContent = dollsToDisplay.length;
+      document.getElementById('paginationRange').textContent = `${startIndex + 1}-${endIndex}`;
+      document.getElementById('paginationTotal').textContent = dollsToDisplay.length;
+      
+      // 更新分页按钮状态
+      updatePaginationButtons(dollsToDisplay.length);
+    }
+    
+    // 更新分页按钮状态
+    function updatePaginationButtons(totalItems) {
+      const totalPages = Math.ceil(totalItems / dollsPerPage);
+      
+      // 重置所有分页按钮
+      [1, 2, 3].forEach(pageNum => {
+        const btn = document.getElementById(`page${pageNum}`);
+        btn.disabled = false;
+        btn.classList.remove('bg-primary', 'text-white');
+        
+        if (pageNum === currentPage) {
+          btn.classList.add('bg-primary', 'text-white');
+        }
+        
+        if (pageNum > totalPages) {
+          btn.disabled = true;
+          btn.classList.remove('bg-primary', 'text-white');
+        }
+      });
+      
+      // 更新上一页和下一页按钮
+      document.getElementById('prevPage').disabled = currentPage === 1;
+      document.getElementById('nextPage').disabled = currentPage >= totalPages;
+    }
+    
+    // 切换页码
+    function changePage(pageNum) {
+      const totalPages = Math.ceil(dolls.length / dollsPerPage);
+      
+      if (pageNum >= 1 && pageNum <= totalPages) {
+        currentPage = pageNum;
+        updateDollTable();
+      }
+    }
+    
+    // 更新位置筛选器
+    function updateLocationFilter() {
+      const locationFilter = document.getElementById('locationFilter');
+      locationFilter.innerHTML = '<option value="">所有位置</option>';
+      
+      const locations = [...new Set(dolls.map(doll => doll.location))];
+      locations.forEach(location => {
+        const option = document.createElement('option');
+        option.value = location;
+        option.textContent = location;
+        locationFilter.appendChild(option);
+      });
+    }
+    
+    // 搜索娃娃
+    function searchDolls() {
+      currentPage = 1; // 新增，切换搜索时重置页码
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+      if (!searchTerm) {
+        updateDollTable();
+        return;
+      }
+      const filteredDolls = dolls.filter(doll =>
+        doll.name.toLowerCase().includes(searchTerm) ||
+        doll.location.toLowerCase().includes(searchTerm) ||
+        doll.id.toLowerCase().includes(searchTerm)
+      );
+      updateDollTable(filteredDolls);
+    }
+    
+    // 按位置筛选
+    function filterByLocation() {
+      currentPage = 1; // 新增，切换筛选时重置页码
+      const location = document.getElementById('locationFilter').value;
+      if (!location) {
+        updateDollTable();
+        return;
+      }
+      const filteredDolls = dolls.filter(doll => doll.location === location);
+      updateDollTable(filteredDolls);
+    }
+    
+    // 显示低库存娃娃
+    function showLowStockDolls() {
+      currentPage = 1; // 新增，切换低库存时重置页码
+      const lowStockDolls = dolls.filter(doll => doll.quantity <= 5);
+      updateDollTable(lowStockDolls);
+    }
+    
+    // 显示所有娃娃
+    function showAllDolls() {
+      currentPage = 1; // 新增，切换全部时重置页码
+      document.getElementById('searchInput').value = '';
+      document.getElementById('locationFilter').value = '';
+      updateDollTable();
+    }
+    
+    // 显示销售表单
+    function showSellForm() {
+      document.getElementById('sellForm').reset();
+      document.getElementById('sellDollId').value = '';
+      document.getElementById('sellDollDropdown').classList.add('hidden');
+      document.getElementById('sellModal').classList.remove('hidden');
+    }
+    
+    // 关闭销售模态框
+    function closeSellModal() {
+      document.getElementById('sellModal').classList.add('hidden');
+      document.getElementById('sellDollDropdown').classList.add('hidden');
+    }
+    
+    // 搜索可销售的娃娃
+    function searchSellDolls() {
+      const searchTerm = document.getElementById('sellDollSearch').value.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        document.getElementById('sellDollDropdown').classList.add('hidden');
+        return;
+      }
+      
+      const availableDolls = dolls.filter(doll => doll.quantity > 0);
+      const filteredDolls = availableDolls.filter(doll =>
+        doll.name.toLowerCase().includes(searchTerm)
+      );
+      
+      const dropdown = document.getElementById('sellDollDropdown');
+      dropdown.innerHTML = '';
+      
+      if (filteredDolls.length === 0) {
+        const item = document.createElement('div');
+        item.className = 'px-4 py-2 text-gray-500 text-sm';
+        item.textContent = '没有找到匹配的娃娃';
+        dropdown.appendChild(item);
+      } else {
+        filteredDolls.forEach(doll => {
+          const item = document.createElement('div');
+          item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
+          item.innerHTML = `
+            <div class="font-medium">${doll.name}</div>
+            <div class="text-xs text-gray-500">库存: ${doll.quantity} | 位置: ${doll.location} | 进价: $${doll.purchasePrice.toFixed(2)}</div>
+          `;
+          
+          item.addEventListener('click', () => {
+            document.getElementById('sellDollSearch').value = doll.name;
+            document.getElementById('sellDollId').value = doll.id;
+            document.getElementById('sellDollDropdown').classList.add('hidden');
+            document.getElementById('sellQuantity').focus();
+          });
+          
+          dropdown.appendChild(item);
+        });
+      }
+      
+      dropdown.classList.remove('hidden');
+    }
+    
+    // 记录销售
+    function recordSale(e) {
+      e.preventDefault();
+      
+      const dollId = document.getElementById('sellDollId').value;
+      const dollName = document.getElementById('sellDollSearch').value.trim();
+      const quantity = parseInt(document.getElementById('sellQuantity').value);
+      const price = parseFloat(document.getElementById('sellPrice').value);
+      const customerName = document.getElementById('customerName').value.trim() || '未知';
+      
+      if (!dollId) {
+        showToast('错误', '请选择一个娃娃', 'error');
+        return;
+      }
+      
+      if (isNaN(quantity) || quantity <= 0) {
+        showToast('错误', '请输入有效的销售数量', 'error');
+        return;
+      }
+      
+      if (isNaN(price) || price <= 0) {
+        showToast('错误', '请输入有效的销售单价', 'error');
+        return;
+      }
+      
+      const dollIndex = dolls.findIndex(d => d.id === dollId);
+      if (dollIndex === -1) {
+        showToast('错误', '所选娃娃不存在', 'error');
+        return;
+      }
+      
+      const doll = dolls[dollIndex];
+      
+      if (quantity > doll.quantity) {
+        showToast('错误', `库存不足，当前库存: ${doll.quantity}`, 'error');
+        return;
+      }
+      
+      const totalPrice = price * quantity;
+      const cost = doll.purchasePrice * EXCHANGE_RATE * quantity;
+      const profit = totalPrice - cost;
+      const timestamp = new Date().toISOString();
+      
+      // 创建销售记录
+      const sale = {
+        id: Date.now().toString(),
+        dollId,
+        dollName,
+        quantity,
+        price,
+        totalPrice,
+        cost,
+        profit,
+        customerName,
+        timestamp
+      };
+      
+      // 更新库存
+      dolls[dollIndex] = {
+        ...doll,
+        quantity: doll.quantity - quantity,
+        updatedAt: timestamp
+      };
+      
+      // 添加销售记录
+      sales.unshift(sale);
+      
+      // 添加日志
+      addLog(`销售了 ${quantity} 个 ${dollName}，收入 ¥${totalPrice.toFixed(2)}，利润 ¥${profit.toFixed(2)}`);
+      
+      // 保存数据
+      saveData();
+      
+      // 更新UI
+      updateDollTable();
+      updateDashboard();
+      updateSalesList();
+      
+      // 显示成功提示
+      showToast('成功', `销售记录已保存，利润: ¥${profit.toFixed(2)}`, 'success');
+      
+      // 关闭模态框
+      closeSellModal();
+    }
+    
+    // 更新销售列表
+    function updateSalesList() {
+      const salesContainer = document.getElementById('salesContainer');
+      salesContainer.innerHTML = '';
+      
+      // 获取最近5条销售记录
+      const recentSales = sales.slice(0, 5);
+      
+      if (recentSales.length === 0) {
+        salesContainer.innerHTML = `
+          <div class="text-center py-6 text-gray-500">
+            <i class="fa fa-file-text-o text-2xl mb-2"></i>
+            <p>暂无销售记录</p>
+          </div>
+        `;
+        return;
+      }
+      
+      recentSales.forEach(sale => {
+        const saleElement = document.createElement('div');
+        saleElement.className = 'border-b border-gray-200 pb-3 mb-3 last:border-b-0 last:pb-0 last:mb-0';
+        
+        const isProfit = sale.profit > 0;
+        const profitClass = isProfit ? 'text-success' : 'text-danger';
+        const profitIcon = isProfit ? 'fa-arrow-up' : 'fa-arrow-down';
+        
+        saleElement.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <h4 class="font-medium text-gray-900">${sale.dollName}</h4>
+              <p class="text-sm text-gray-500">${new Date(sale.timestamp).toLocaleString()}</p>
+            </div>
+            <div class="text-right">
+              <p class="font-medium text-gray-900">¥${sale.totalPrice.toFixed(2)}</p>
+              <p class="text-xs ${profitClass}">
+                <i class="fa ${profitIcon} mr-1"></i> ¥${Math.abs(sale.profit).toFixed(2)}
+              </p>
+            </div>
+          </div>
+          <div class="flex justify-between mt-2 text-xs text-gray-500">
+            <span>${sale.quantity} 个 × ¥${sale.price.toFixed(2)}</span>
+            <span>${sale.customerName}</span>
+          </div>
+        `;
+        
+        salesContainer.appendChild(saleElement);
+      });
+    }
+    
+    // 显示所有销售记录
+    function showAllSales() {
+      updateAllSalesTable();
+      document.getElementById('allSalesModal').classList.remove('hidden');
+    }
+    
+    // 关闭所有销售记录模态框
+    function closeAllSalesModal() {
+      document.getElementById('allSalesModal').classList.add('hidden');
+    }
+    
+    // 更新所有销售记录表格
+    function updateAllSalesTable(filteredSales = null) {
+      const salesToDisplay = filteredSales || sales;
+      const startIndex = (salesCurrentPage - 1) * salesPerPage;
+      const endIndex = Math.min(startIndex + salesPerPage, salesToDisplay.length);
+      const paginatedSales = salesToDisplay.slice(startIndex, endIndex);
+      
+      const tableBody = document.getElementById('allSalesTableBody');
+      tableBody.innerHTML = '';
+      
+      if (paginatedSales.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+          <td colspan="9" class="px-6 py-4 text-center text-gray-500">
+            <i class="fa fa-file-text-o mr-2"></i>没有找到销售记录
+          </td>
+        `;
+        tableBody.appendChild(emptyRow);
+      } else {
+        paginatedSales.forEach(sale => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-gray-50 transition-all-300';
+          
+          const isProfit = sale.profit > 0;
+          const profitClass = isProfit ? 'text-success' : 'text-danger';
+          
+          row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">${new Date(sale.timestamp).toLocaleString()}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">${sale.dollName}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">${sale.quantity}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">¥${sale.price.toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-medium text-gray-900">¥${sale.totalPrice.toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">¥${sale.cost.toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-medium ${profitClass}">¥${sale.profit.toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">${sale.customerName}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <button onclick="deleteSale('${sale.id}')" class="text-danger hover:text-danger/80">
+                <i class="fa fa-trash"></i> 删除
+              </button>
+            </td>
+          `;
+          
+          tableBody.appendChild(row);
+        });
+      }
+      
+      // 更新分页信息
+      document.getElementById('salesPaginationRange').textContent = `${startIndex + 1}-${endIndex}`;
+      document.getElementById('salesPaginationTotal').textContent = salesToDisplay.length;
+      
+      // 更新分页按钮状态
+      updateSalesPaginationButtons(salesToDisplay.length);
+    }
+    
+    // 更新销售记录分页按钮状态
+    function updateSalesPaginationButtons(totalItems) {
+      const totalPages = Math.ceil(totalItems / salesPerPage);
+      
+      // 重置所有分页按钮
+      [1, 2, 3].forEach(pageNum => {
+        const btn = document.getElementById(`salesPage${pageNum}`);
+        btn.disabled = false;
+        btn.classList.remove('bg-primary', 'text-white');
+        
+        if (pageNum === salesCurrentPage) {
+          btn.classList.add('bg-primary', 'text-white');
+        }
+        
+        if (pageNum > totalPages) {
+          btn.disabled = true;
+          btn.classList.remove('bg-primary', 'text-white');
+        }
+      });
+      
+      // 更新上一页和下一页按钮
+      document.getElementById('salesPrevPage').disabled = salesCurrentPage === 1;
+      document.getElementById('salesNextPage').disabled = salesCurrentPage >= totalPages;
+    }
+    
+    // 切换销售记录页码
+    function changeSalesPage(pageNum) {
+      const totalPages = Math.ceil(sales.length / salesPerPage);
+      
+      if (pageNum >= 1 && pageNum <= totalPages) {
+        salesCurrentPage = pageNum;
+        updateAllSalesTable();
+      }
+    }
+    
+    // 删除销售记录
+    function deleteSale(id) {
+      if (!confirm('确定要删除这条销售记录吗？此操作不可撤销。')) return;
+      
+      const saleIndex = sales.findIndex(s => s.id === id);
+      if (saleIndex === -1) return;
+      
+      const sale = sales[saleIndex];
+      
+      // 恢复库存
+      const dollIndex = dolls.findIndex(d => d.id === sale.dollId);
+      if (dollIndex !== -1) {
+        dolls[dollIndex].quantity += sale.quantity;
+        dolls[dollIndex].updatedAt = new Date().toISOString();
+      }
+      
+      // 删除销售记录
+      sales.splice(saleIndex, 1);
+      
+      // 添加日志
+      addLog(`删除了销售记录: ${sale.dollName} (${sale.quantity}个)`);
+      
+      // 保存数据
+      saveData();
+      
+      // 更新UI
+      updateDollTable();
+      updateDashboard();
+      updateSalesList();
+      updateAllSalesTable();
+      
+      // 显示提示
+      showToast('成功', '销售记录已删除', 'success');
+    }
+    
+    // 显示汇率设置模态框
+    function showExchangeRateModal() {
+      document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('exchangeRateModal').classList.remove('hidden');
+    }
+    
+    // 关闭汇率设置模态框
+    function closeExchangeRateModal() {
+      document.getElementById('exchangeRateModal').classList.add('hidden');
+    }
+    
+    // 保存汇率
+    function saveExchangeRate() {
+      const newRate = parseFloat(document.getElementById('newExchangeRate').value);
+      
+      if (isNaN(newRate) || newRate <= 0) {
+        showToast('错误', '请输入有效的汇率', 'error');
+        return;
+      }
+      
+      EXCHANGE_RATE = newRate;
+      
+      // 添加日志
+      addLog(`更新了汇率: 1 美元 = ${EXCHANGE_RATE.toFixed(2)} 人民币`);
+      
+      // 保存数据
+      saveData();
+      
+      // 更新UI
+      document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
+      
+      // 更新仪表盘
+      updateDashboard();
+      
+      // 关闭模态框
+      closeExchangeRateModal();
+      
+      // 显示提示
+      showToast('成功', '汇率已更新', 'success');
+    }
+    
+    // 更新仪表盘数据
+    function updateDashboard() {
+      // 计算总库存
+      const totalDolls = dolls.reduce((sum, doll) => sum + doll.quantity, 0);
+      
+      // 计算今日销售额
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todaySales = sales.filter(sale => {
+        const saleDate = new Date(sale.timestamp);
+        saleDate.setHours(0, 0, 0, 0);
+        return saleDate.getTime() === today.getTime();
+      });
+      
+      const todaySalesAmount = todaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+      
+      // 计算总利润
+      const totalProfit = sales.reduce((sum, sale) => sum + sale.profit, 0);
+      
+      // 更新仪表盘
+      document.getElementById('totalDolls').textContent = totalDolls;
+      document.getElementById('todaySales').textContent = `¥${todaySalesAmount.toFixed(2)}`;
+      document.getElementById('totalProfit').textContent = `¥${totalProfit.toFixed(2)}`;
+      
+      // 更新利润汇总
+      const totalSales = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+      const totalCost = sales.reduce((sum, sale) => sum + sale.cost, 0);
+      
+      document.getElementById('totalSalesAmount').textContent = `¥${totalSales.toFixed(2)}`;
+      document.getElementById('totalCostAmount').textContent = `¥${totalCost.toFixed(2)}`;
+      document.getElementById('totalProfitAmount').textContent = `¥${totalProfit.toFixed(2)}`;
+    }
+    
+    // 添加日志
+    function addLog(message) {
+      const timestamp = new Date().toISOString();
+      logs.unshift({
+        id: Date.now().toString(),
+        message,
+        timestamp
+      });
+      
+      // 限制日志数量
+      if (logs.length > 100) {
+        logs.pop();
+      }
+    }
+    
+    // 显示提示消息
+    function showToast(title, message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastTitle = document.getElementById('toastTitle');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      
+      // 设置提示类型
+      const bgColors = {
+        success: 'bg-success',
+        error: 'bg-danger',
+        warning: 'bg-warning',
+        info: 'bg-info'
+      };
+      
+      const icons = {
+        success: 'fa-check',
+        error: 'fa-times',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+      };
+      
+      // 更新提示内容
+      toastTitle.textContent = title;
+      toastMessage.textContent = message;
+      
+      // 更新提示图标和背景
+      toastIcon.className = `mr-3 w-8 h-8 flex items-center justify-center rounded-full ${bgColors[type]}`;
+      toastIcon.innerHTML = `<i class="fa ${icons[type]} text-white"></i>`;
+      
+      // 显示提示
+      toast.classList.remove('translate-x-full');
+      
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        toast.classList.add('translate-x-full');
+      }, 3000);
+    }
+    
+    // 导出利润数据
+    function exportProfitData() {
+      if (sales.length === 0) {
+        showToast('信息', '没有销售记录可导出', 'info');
+        return;
+      }
+      
+      // 准备CSV数据
+      let csvContent = "日期,娃娃名称,数量,单价(CNY),总价(CNY),成本(CNY),利润(CNY),客户\n";
+      
+      sales.forEach(sale => {
+        const date = new Date(sale.timestamp).toLocaleString();
+        csvContent += `${date},${sale.dollName},${sale.quantity},${sale.price.toFixed(2)},${sale.totalPrice.toFixed(2)},${sale.cost.toFixed(2)},${sale.profit.toFixed(2)},${sale.customerName}\n`;
+      });
+      
+      // 创建CSV文件并下载
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `利润数据_${new Date().toISOString().slice(0,10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast('成功', '利润数据已导出为CSV文件', 'success');
+    }
+    
+    // 保存数据到 Google Drive
+    async function saveToDrive() {
+      const data = {
+        dolls: dolls,
+        sales: sales,
+        logs: logs,
+        lastUpdated: new Date().toISOString(),
+        exchangeRate: EXCHANGE_RATE
+      };
+      const fileContent = JSON.stringify(data, null, 2);
+      const fileMetadata = {
+        name: 'doll_inventory.json',
+        mimeType: 'application/json'
+      };
+      try {
+        // 查找是否已有文件
+        const response = await gapi.client.drive.files.list({
+          q: "name='doll_inventory.json' and mimeType='application/json' and trashed=false",
+          fields: 'files(id, name)'
+        });
+        if (response.result.files && response.result.files.length > 0) {
+          // 更新
+          await gapi.client.request({
+            path: `https://www.googleapis.com/upload/drive/v3/files/${response.result.files[0].id}`,
+            method: 'PATCH',
+            params: { uploadType: 'media' },
+            headers: { 'Content-Type': 'application/json' },
+            body: fileContent
+          });
+          showToast('成功', '数据已更新到 Google Drive', 'success');
+        } else {
+          // 新建
+          const boundary = '-------314159265358979323846';
+          const delimiter = "\r\n--" + boundary + "\r\n";
+          const closeDelimiter = "\r\n--" + boundary + "--";
+          const base64Data = btoa(unescape(encodeURIComponent(fileContent)));
+          const multipartRequestBody =
+            delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            JSON.stringify(fileMetadata) +
+            delimiter +
+            'Content-Type: application/json\r\n' +
+            'Content-Transfer-Encoding: base64\r\n' +
+            '\r\n' +
+            base64Data +
+            closeDelimiter;
+          await gapi.client.request({
+            path: 'https://www.googleapis.com/upload/drive/v3/files',
+            method: 'POST',
+            params: { uploadType: 'multipart' },
+            headers: { 'Content-Type': 'multipart/mixed; boundary="' + boundary + '"' },
+            body: multipartRequestBody
+          });
+          showToast('成功', '数据已保存到 Google Drive', 'success');
+        }
+      } catch (error) {
+        showToast('错误', '同步失败: ' + (error.message || JSON.stringify(error)), 'error');
+      }
+    }
+
+    // 从 Google Drive 加载数据
+    async function loadFromDrive() {
+      try {
+        const response = await gapi.client.drive.files.list({
+          q: "name='doll_inventory.json' and mimeType='application/json' and trashed=false",
+          fields: 'files(id, name)'
+        });
+        if (!response.result.files || response.result.files.length === 0) {
+          showToast('信息', '未找到同步数据', 'info');
+          return;
+        }
+        const fileId = response.result.files[0].id;
+        const fileResp = await gapi.client.drive.files.get({
+          fileId: fileId,
+          alt: 'media'
+        });
+        const data = fileResp.result;
+        if (!confirm('确定要从云端加载数据吗？这将覆盖本地现有数据。')) {
+          return;
+        }
+        dolls = data.dolls || [];
+        sales = data.sales || [];
+        logs = data.logs || [];
+        if (data.exchangeRate) EXCHANGE_RATE = data.exchangeRate;
+        saveData();
+        updateDollTable();
+        updateDashboard();
+        updateSalesList();
+        updateLocationFilter();
+        document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
+        document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
+        document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+        showToast('成功', '已从 Google Drive 加载数据', 'success');
+      } catch (error) {
+        showToast('错误', '加载失败: ' + (error.message || JSON.stringify(error)), 'error');
+      }
+    }
+    
+    // 初始化 Google Drive 集成
+    function initGoogleDriveIntegration() {
+      // 添加按钮事件监听
+      document.getElementById('googleDriveSaveBtn').addEventListener('click', () => {
+        if (!gapiInited || !gisInited) {
+          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          return;
+        }
+        authenticate(saveToDrive);
+      });
+      
+      document.getElementById('googleDriveLoadBtn').addEventListener('click', () => {
+        if (!gapiInited || !gisInited) {
+          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          return;
+        }
+        authenticate(loadFromDrive);
+      });
+    }
+  </script>
+</body>
+</html>
