@@ -638,6 +638,12 @@
     </div>
   </div>
 
+  <!-- 在 <body> 末尾 </body> 前添加同步状态div -->
+  <div id="autoSyncStatus" style="position:fixed;top:20px;right:20px;z-index:9999;display:none;pointer-events:none;">
+    <span id="autoSyncIcon" class="fa fa-cloud text-info"></span>
+    <span id="autoSyncText" class="ml-2 text-info font-medium"></span>
+  </div>
+
   <script>
     // 全局数据
     let dolls = [];
@@ -1676,19 +1682,20 @@
     
     // 保存数据到 Google Drive
     async function saveToDrive() {
-      const data = {
-        dolls: dolls,
-        sales: sales,
-        logs: logs,
-        lastUpdated: new Date().toISOString(),
-        exchangeRate: EXCHANGE_RATE
-      };
-      const fileContent = JSON.stringify(data, null, 2);
-      const fileMetadata = {
-        name: 'doll_inventory.json',
-        mimeType: 'application/json'
-      };
+      showAutoSyncStatus('同步中...', 'info');
       try {
+        const data = {
+          dolls: dolls,
+          sales: sales,
+          logs: logs,
+          lastUpdated: new Date().toISOString(),
+          exchangeRate: EXCHANGE_RATE
+        };
+        const fileContent = JSON.stringify(data, null, 2);
+        const fileMetadata = {
+          name: 'doll_inventory.json',
+          mimeType: 'application/json'
+        };
         // 查找是否已有文件
         const response = await gapi.client.drive.files.list({
           q: "name='doll_inventory.json' and mimeType='application/json' and trashed=false",
@@ -1703,7 +1710,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: fileContent
           });
-          showToast('成功', '数据已更新到 Google Drive', 'success');
+          showAutoSyncStatus('已自动同步到云端', 'success');
         } else {
           // 新建
           const boundary = '-------314159265358979323846';
@@ -1727,10 +1734,10 @@
             headers: { 'Content-Type': 'multipart/mixed; boundary="' + boundary + '"' },
             body: multipartRequestBody
           });
-          showToast('成功', '数据已保存到 Google Drive', 'success');
+          showAutoSyncStatus('已自动同步到云端', 'success');
         }
       } catch (error) {
-        showToast('错误', '同步失败: ' + (error.message || JSON.stringify(error)), 'error');
+        showAutoSyncStatus('同步失败', 'danger');
       }
     }
 
@@ -2078,6 +2085,27 @@
         }
       });
     });
+
+    // 在 <script> 里添加状态显示函数
+    function showAutoSyncStatus(msg, type = 'info') {
+      const el = document.getElementById('autoSyncStatus');
+      const icon = document.getElementById('autoSyncIcon');
+      const text = document.getElementById('autoSyncText');
+      if (!el || !icon || !text) return;
+      text.textContent = msg;
+      if (type === 'info') {
+        icon.className = 'fa fa-cloud text-info';
+        text.className = 'ml-2 text-info font-medium';
+      } else if (type === 'success') {
+        icon.className = 'fa fa-check-circle text-success';
+        text.className = 'ml-2 text-success font-medium';
+      } else if (type === 'danger' || type === 'error') {
+        icon.className = 'fa fa-times-circle text-danger';
+        text.className = 'ml-2 text-danger font-medium';
+      }
+      el.style.display = 'flex';
+      setTimeout(() => { el.style.display = 'none'; }, 2000);
+    }
   </script>
 </body>
 </html>
