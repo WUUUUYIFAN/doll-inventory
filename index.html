@@ -81,24 +81,24 @@
             <span class="hidden sm:inline">导出利润</span>
           </button>
           
-          <div class="relative group">
-            <button class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
+          <div class="relative group" id="settingsGroup">
+            <button id="settingsBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
               <i class="fa fa-cog mr-2"></i>
               <span class="hidden sm:inline">设置</span>
             </button>
-            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+            <div id="settingsMenu" class="absolute right-0 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
               <button id="changeExchangeRateBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
                 <i class="fa fa-money mr-2"></i> 设置汇率
               </button>
             </div>
           </div>
           
-          <div class="relative" id="cloudSyncGroup">
+          <div class="relative group" id="cloudSyncGroup">
             <button id="cloudSyncBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all-300 flex items-center">
               <i class="fa fa-cloud mr-2"></i>
               <span class="hidden sm:inline">云同步</span>
             </button>
-            <div id="cloudSyncMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden">
+            <div id="cloudSyncMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
               <button id="googleDriveSaveBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
                 <i class="fa fa-cloud-upload mr-2"></i> 同步到 Google Drive
               </button>
@@ -455,6 +455,7 @@
         <div class="mb-4">
           <label for="newExchangeRate" class="block text-sm font-medium text-gray-700 mb-1">当前汇率: <span id="currentExchangeRate">6.90</span></label>
           <input type="number" id="newExchangeRate" min="0.01" step="0.01" value="6.90" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all-300" required>
+          <button id="syncExchangeRateBtn" type="button" class="ml-2 mt-2 px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm">实时同步汇率</button>
           <p class="text-xs text-gray-500 mt-1">1 美元 = X 人民币</p>
         </div>
         
@@ -649,15 +650,31 @@
       // 初始化 Google Drive 集成
       initGoogleDriveIntegration();
       
-      // 云同步下拉菜单显示控制
+      // 云同步菜单：桌面端悬停和移动端点击都可用
       const cloudSyncGroup = document.getElementById('cloudSyncGroup');
       const cloudSyncMenu = document.getElementById('cloudSyncMenu');
+      let menuTimer = null;
       if (cloudSyncGroup && cloudSyncMenu) {
         cloudSyncGroup.addEventListener('mouseenter', () => {
+          clearTimeout(menuTimer);
           cloudSyncMenu.classList.remove('hidden');
         });
         cloudSyncGroup.addEventListener('mouseleave', () => {
+          menuTimer = setTimeout(() => {
+            cloudSyncMenu.classList.add('hidden');
+          }, 100);
+        });
+        // 兼容移动端点击
+        const cloudSyncBtn = document.getElementById('cloudSyncBtn');
+        cloudSyncBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          cloudSyncMenu.classList.toggle('hidden');
+        });
+        document.addEventListener('click', function() {
           cloudSyncMenu.classList.add('hidden');
+        });
+        cloudSyncMenu.addEventListener('click', function(e) {
+          e.stopPropagation();
         });
       }
       
@@ -679,6 +696,10 @@
         }
         authenticate(loadFromDrive);
       });
+      // 实时同步汇率按钮事件
+      document.getElementById('syncExchangeRateBtn').addEventListener('click', syncExchangeRate);
+      // 页面加载时自动同步汇率
+      syncExchangeRate();
     });
     
     // 从localStorage加载数据
@@ -1609,6 +1630,28 @@
         }
         authenticate(loadFromDrive);
       });
+    }
+
+    // 实时同步美元兑人民币汇率
+    async function syncExchangeRate() {
+      try {
+        const resp = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=CNY');
+        const data = await resp.json();
+        if (data && data.rates && data.rates.CNY) {
+          EXCHANGE_RATE = data.rates.CNY;
+          // 更新页面显示
+          document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
+          document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
+          document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+          // 存储到 localStorage
+          localStorage.setItem('exchangeRate', EXCHANGE_RATE.toString());
+          showToast('成功', '汇率已实时同步', 'success');
+        } else {
+          showToast('错误', '获取汇率失败', 'error');
+        }
+      } catch (e) {
+        showToast('错误', '汇率同步失败', 'error');
+      }
     }
   </script>
 </body>
