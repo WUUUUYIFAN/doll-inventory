@@ -1635,7 +1635,7 @@
     // 实时同步美元兑人民币汇率
     async function syncExchangeRate() {
       try {
-        const resp = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=CNY');
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
         const data = await resp.json();
         if (data && data.rates && data.rates.CNY) {
           EXCHANGE_RATE = data.rates.CNY;
