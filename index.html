@@ -527,6 +527,38 @@
     </div>
   </div>
 
+  <!-- 历史记录悬浮按钮 -->
+  <button id="historyBtn" style="position:fixed;right:24px;bottom:24px;z-index:1000;box-shadow:0 2px 8px #0001" class="bg-primary text-white rounded-full w-14 h-14 flex items-center justify-center text-2xl hover:bg-primary/90 transition-all-300">
+    <i class="fa fa-history"></i>
+  </button>
+  <!-- 历史记录模态框 -->
+  <div id="historyModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-2xl w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-900">历史记录</h3>
+        <button id="closeHistoryModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6 overflow-y-auto max-h-[70vh]">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left">时间</th>
+              <th class="px-4 py-2 text-left">娃娃数</th>
+              <th class="px-4 py-2 text-left">销售数</th>
+              <th class="px-4 py-2 text-left">汇率</th>
+              <th class="px-4 py-2 text-left">操作</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="bg-white divide-y divide-gray-200">
+            <!-- 动态内容 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 全局数据
     let dolls = [];
@@ -700,6 +732,10 @@
       document.getElementById('syncExchangeRateBtn').addEventListener('click', syncExchangeRate);
       // 页面加载时自动同步汇率
       syncExchangeRate();
+      
+      // 历史记录UI逻辑
+      document.getElementById('historyBtn').addEventListener('click', showHistoryModal);
+      document.getElementById('closeHistoryModalBtn').addEventListener('click', closeHistoryModal);
     });
     
     // 从localStorage加载数据
@@ -734,6 +770,7 @@
       localStorage.setItem('sales', JSON.stringify(sales));
       localStorage.setItem('logs', JSON.stringify(logs));
       localStorage.setItem('exchangeRate', EXCHANGE_RATE.toString());
+      saveHistorySnapshot();
     }
     
     // 显示添加娃娃表单
@@ -1598,7 +1635,7 @@
         sales = data.sales || [];
         logs = data.logs || [];
         if (data.exchangeRate) EXCHANGE_RATE = data.exchangeRate;
-        saveData();
+        saveData(); // saveData里已自动保存快照
         updateDollTable();
         updateDashboard();
         updateSalesList();
@@ -1652,6 +1689,80 @@
       } catch (e) {
         showToast('错误', '汇率同步失败', 'error');
       }
+    }
+    
+    // 保存历史快照
+    function saveHistorySnapshot() {
+      const history = JSON.parse(localStorage.getItem('history') || '[]');
+      const snapshot = {
+        dolls: dolls,
+        sales: sales,
+        logs: logs,
+        exchangeRate: EXCHANGE_RATE,
+        timestamp: new Date().toISOString()
+      };
+      history.unshift(snapshot);
+      if (history.length > 20) history.pop();
+      localStorage.setItem('history', JSON.stringify(history));
+    }
+    
+    // 历史记录UI逻辑
+    document.addEventListener('DOMContentLoaded', function() {
+      // ... existing code ...
+      document.getElementById('historyBtn').addEventListener('click', showHistoryModal);
+      document.getElementById('closeHistoryModalBtn').addEventListener('click', closeHistoryModal);
+    });
+    function showHistoryModal() {
+      const history = JSON.parse(localStorage.getItem('history') || '[]');
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = '';
+      if (history.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="5" class="px-4 py-4 text-center text-gray-500">暂无历史记录</td>`;
+        tbody.appendChild(row);
+        document.getElementById('historyModal').classList.remove('hidden');
+        return;
+      }
+      history.forEach((snap, idx) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-4 py-2">${new Date(snap.timestamp).toLocaleString()}</td>
+          <td class="px-4 py-2">${snap.dolls ? snap.dolls.length : 0}</td>
+          <td class="px-4 py-2">${snap.sales ? snap.sales.length : 0}</td>
+          <td class="px-4 py-2">${snap.exchangeRate ? snap.exchangeRate.toFixed(2) : ''}</td>
+          <td class="px-4 py-2">
+            <button class="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" onclick="restoreHistory(${idx})">恢复</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+      document.getElementById('historyModal').classList.remove('hidden');
+    }
+    function closeHistoryModal() {
+      document.getElementById('historyModal').classList.add('hidden');
+    }
+    function restoreHistory(index) {
+      const history = JSON.parse(localStorage.getItem('history') || '[]');
+      if (!history[index]) {
+        showToast('错误', '历史快照不存在', 'error');
+        return;
+      }
+      if (!confirm('确定要恢复到该历史快照吗？此操作会覆盖当前数据。')) return;
+      const data = history[index];
+      dolls = data.dolls || [];
+      sales = data.sales || [];
+      logs = data.logs || [];
+      EXCHANGE_RATE = data.exchangeRate || 6.90;
+      saveData();
+      updateDollTable();
+      updateDashboard();
+      updateSalesList();
+      updateLocationFilter();
+      document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
+      document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+      closeHistoryModal();
+      showToast('成功', '已恢复历史快照', 'success');
     }
   </script>
 </body>
