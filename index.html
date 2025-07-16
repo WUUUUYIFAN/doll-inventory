@@ -867,6 +867,15 @@
       document.getElementById('dollForm').reset();
       document.getElementById('dollId').value = '';
       document.getElementById('dollModal').classList.remove('hidden');
+      // 重新绑定存放位置下拉事件
+      const inputLoc = document.getElementById('dollLocation');
+      if (inputLoc) {
+        inputLoc.removeEventListener('input', updateDollLocationDropdown);
+        inputLoc.removeEventListener('focus', updateDollLocationDropdown);
+        inputLoc.addEventListener('input', updateDollLocationDropdown);
+        inputLoc.addEventListener('focus', updateDollLocationDropdown);
+        updateDollLocationDropdown();
+      }
     }
     
     // 关闭模态框
@@ -945,6 +954,15 @@
       document.getElementById('dollPurchasePrice').value = doll.purchasePrice;
       document.getElementById('dollDescription').value = doll.description || '';
       document.getElementById('dollModal').classList.remove('hidden');
+      // 重新绑定存放位置下拉事件
+      const inputLoc = document.getElementById('dollLocation');
+      if (inputLoc) {
+        inputLoc.removeEventListener('input', updateDollLocationDropdown);
+        inputLoc.removeEventListener('focus', updateDollLocationDropdown);
+        inputLoc.addEventListener('input', updateDollLocationDropdown);
+        inputLoc.addEventListener('focus', updateDollLocationDropdown);
+        updateDollLocationDropdown();
+      }
     }
     
     // 删除娃娃
