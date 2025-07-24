@@ -55,6 +55,26 @@
       }
     }
   </style>
+  <style>
+    .flatpickr-day {
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 36px !important;
+      padding-top: 2px !important;
+      font-size: 16px;
+      position: relative;
+    }
+    .flatpickr-day .profit-tip {
+      font-size: 10px;
+      line-height: 1;
+      margin-top: 2px;
+      position: static;
+      z-index: 2;
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body class="bg-gray-50 font-inter">
   <!-- 全局提示 -->
@@ -2198,14 +2218,14 @@
               const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
               profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
             }
+            console.log('onDayCreate', dateStr, profit);
             // 只显示有盈亏的日期
             if (profit !== 0) {
               dayElem.style.display = 'flex';
               dayElem.style.flexDirection = 'column';
               dayElem.style.alignItems = 'center';
               const profitDiv = document.createElement('div');
-              profitDiv.className = 'text-xs mt-0.5 leading-tight ' + (profit > 0 ? 'text-green-500' : 'text-red-500');
-              profitDiv.style.fontSize = '10px';
+              profitDiv.className = 'profit-tip text-xs mt-0.5 leading-tight ' + (profit > 0 ? 'text-green-500' : 'text-red-500');
               profitDiv.textContent = `¥${profit.toFixed(2)}`;
               dayElem.appendChild(profitDiv);
             }
