@@ -2184,30 +2184,27 @@
           locale: "zh",
           onChange: function(selectedDates, dateStr) {
             showProfitByDate(dateStr);
+          },
+          onDayCreate: function(dObj, dStr, fp, dayElem) {
+            const date = dayElem.dateObj;
+            const dateStr = date.toISOString().slice(0,10);
+            let profit = 0;
+            if (window.sales) {
+              const salesOnDay = sales.filter(sale => sale.timestamp.slice(0,10) === dateStr);
+              profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
+            }
+            if (window.expenses) {
+              const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
+              profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+            }
+            const profitDiv = document.createElement('div');
+            profitDiv.className = 'text-xs mt-0.5 ' + (profit >= 0 ? 'text-green-500' : 'text-red-500');
+            profitDiv.textContent = `¥${profit.toFixed(2)}`;
+            dayElem.appendChild(profitDiv);
           }
         });
       }
     });
-    function showProfitByDate(dateStr) {
-      if (!dateStr) {
-        document.getElementById('profitByDateResult').textContent = '请选择日期';
-        return;
-      }
-      // 计算该日所有销售利润和支出
-      const salesOnDay = sales.filter(sale => {
-        const d = new Date(sale.timestamp);
-        return d.toISOString().slice(0,10) === dateStr;
-      });
-      const profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
-      // 支出
-      const expensesOnDay = expenses.filter(exp => {
-        if (!exp.timestamp) return false;
-        return exp.timestamp.slice(0,10) === dateStr;
-      });
-      const expenseSum = expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
-      const netProfit = profit - expenseSum;
-      document.getElementById('profitByDateResult').textContent = `¥${netProfit.toFixed(2)}`;
-    }
     // ========== END ==========
 
     // ========== 修改：动态同比百分比 ==========
