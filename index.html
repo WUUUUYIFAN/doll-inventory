@@ -131,7 +131,7 @@
             </div>
             <div class="mt-4 flex items-center text-sm">
               <i class="fa fa-info-circle text-info mr-1"></i>
-              <span class="text-info font-medium">库存现值</span>
+              <span class="text-info font-medium" id="totalValueTip">库存现值</span>
             </div>
           </div>
           <div class="bg-white rounded-xl shadow-md p-6 hover-scale">
@@ -145,8 +145,9 @@
               </div>
             </div>
             <div class="mt-4 flex items-center text-sm">
-              <i class="fa fa-arrow-up text-success mr-1"></i>
-              <span class="text-success font-medium">12% 较上月</span>
+              <i class="fa fa-arrow-up text-success mr-1" id="totalDollsArrow"></i>
+              <span class="font-medium" id="totalDollsPercent">0%</span>
+              <span class="ml-1">较昨日</span>
             </div>
           </div>
           
@@ -161,8 +162,9 @@
               </div>
             </div>
             <div class="mt-4 flex items-center text-sm">
-              <i class="fa fa-arrow-up text-success mr-1"></i>
-              <span class="text-success font-medium">8% 较昨日</span>
+              <i class="fa fa-arrow-up text-success mr-1" id="todaySalesArrow"></i>
+              <span class="font-medium" id="todaySalesPercent">0%</span>
+              <span class="ml-1">较昨日</span>
             </div>
           </div>
           
@@ -177,10 +179,17 @@
               </div>
             </div>
             <div class="mt-4 flex items-center text-sm">
-              <i class="fa fa-arrow-up text-success mr-1"></i>
-              <span class="text-success font-medium">15% 较上月</span>
+              <i class="fa fa-arrow-up text-success mr-1" id="totalProfitArrow"></i>
+              <span class="font-medium" id="totalProfitPercent">0%</span>
+              <span class="ml-1">较上月</span>
             </div>
           </div>
+        </div>
+        <!-- 任意日期利润查询 -->
+        <div class="mt-6 flex items-center">
+          <label for="profitDatePicker" class="mr-2 text-gray-700">查询任意日期利润：</label>
+          <input type="date" id="profitDatePicker" class="border rounded px-2 py-1 mr-2">
+          <span id="profitByDateResult" class="text-primary font-bold">请选择日期</span>
         </div>
       </section>
       
@@ -2155,6 +2164,144 @@
       el.style.display = 'flex';
       setTimeout(() => { el.style.display = 'none'; }, 2000);
     }
+
+    // ========== 新增：任意日期利润查询 ==========
+    document.addEventListener('DOMContentLoaded', function() {
+      const picker = document.getElementById('profitDatePicker');
+      if (picker) {
+        picker.addEventListener('change', function() {
+          showProfitByDate(this.value);
+        });
+      }
+    });
+    function showProfitByDate(dateStr) {
+      if (!dateStr) {
+        document.getElementById('profitByDateResult').textContent = '请选择日期';
+        return;
+      }
+      // 计算该日所有销售利润和支出
+      const salesOnDay = sales.filter(sale => {
+        const d = new Date(sale.timestamp);
+        return d.toISOString().slice(0,10) === dateStr;
+      });
+      const profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
+      // 支出
+      const expensesOnDay = expenses.filter(exp => {
+        if (!exp.timestamp) return false;
+        return exp.timestamp.slice(0,10) === dateStr;
+      });
+      const expenseSum = expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+      const netProfit = profit - expenseSum;
+      document.getElementById('profitByDateResult').textContent = `¥${netProfit.toFixed(2)}`;
+    }
+    // ========== END ==========
+
+    // ========== 修改：动态同比百分比 ==========
+    function updateDashboard() {
+      // 计算总库存
+      const totalDolls = dolls.reduce((sum, doll) => sum + doll.quantity, 0);
+      // 计算物品总价值
+      const totalValue = dolls.reduce((sum, doll) => sum + doll.quantity * doll.purchasePrice * EXCHANGE_RATE, 0);
+      // 计算今日销售额
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0,10);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0,10);
+      // 今日销售
+      const todaySales = sales.filter(sale => sale.timestamp.slice(0,10) === todayStr);
+      const todaySalesAmount = todaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+      // 昨日销售
+      const yesterdaySales = sales.filter(sale => sale.timestamp.slice(0,10) === yesterdayStr);
+      const yesterdaySalesAmount = yesterdaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+      // 总利润（本月/上月）
+      const now = new Date();
+      const thisMonth = now.getMonth();
+      const thisYear = now.getFullYear();
+      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+      const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+      // 本月销售
+      const monthSales = sales.filter(sale => {
+        const d = new Date(sale.timestamp);
+        return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+      });
+      const lastMonthSales = sales.filter(sale => {
+        const d = new Date(sale.timestamp);
+        return d.getFullYear() === lastMonthYear && d.getMonth() === lastMonth;
+      });
+      // 本月利润
+      const monthProfit = monthSales.reduce((sum, sale) => sum + sale.profit, 0);
+      // 上月利润
+      const lastMonthProfit = lastMonthSales.reduce((sum, sale) => sum + sale.profit, 0);
+      // 本月支出
+      const monthExpenses = expenses.filter(exp => {
+        if (!exp.timestamp) return false;
+        const d = new Date(exp.timestamp);
+        return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+      });
+      const lastMonthExpenses = expenses.filter(exp => {
+        if (!exp.timestamp) return false;
+        const d = new Date(exp.timestamp);
+        return d.getFullYear() === lastMonthYear && d.getMonth() === lastMonth;
+      });
+      const monthExpenseSum = monthExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+      const lastMonthExpenseSum = lastMonthExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+      const monthNetProfit = monthProfit - monthExpenseSum;
+      const lastMonthNetProfit = lastMonthProfit - lastMonthExpenseSum;
+      // 总库存（昨天）
+      let yesterdayTotalDolls = null;
+      const history = JSON.parse(localStorage.getItem('history') || '[]');
+      if (history.length > 0) {
+        const ySnap = history.find(snap => snap.timestamp && snap.timestamp.slice(0,10) === yesterdayStr);
+        if (ySnap && ySnap.dolls) {
+          yesterdayTotalDolls = ySnap.dolls.reduce((sum, doll) => sum + doll.quantity, 0);
+        }
+      }
+      // 百分比计算
+      // 总库存
+      let dollsPercent = 0, dollsArrow = 'fa-arrow-up', dollsColor = 'text-success';
+      if (yesterdayTotalDolls !== null && yesterdayTotalDolls !== 0) {
+        dollsPercent = ((totalDolls - yesterdayTotalDolls) / yesterdayTotalDolls * 100).toFixed(1);
+        if (dollsPercent < 0) { dollsArrow = 'fa-arrow-down'; dollsColor = 'text-danger'; }
+      }
+      // 今日销售额
+      let salesPercent = 0, salesArrow = 'fa-arrow-up', salesColor = 'text-success';
+      if (yesterdaySalesAmount !== 0) {
+        salesPercent = ((todaySalesAmount - yesterdaySalesAmount) / yesterdaySalesAmount * 100).toFixed(1);
+        if (salesPercent < 0) { salesArrow = 'fa-arrow-down'; salesColor = 'text-danger'; }
+      }
+      // 总利润
+      let profitPercent = 0, profitArrow = 'fa-arrow-up', profitColor = 'text-success';
+      if (lastMonthNetProfit !== 0) {
+        profitPercent = ((monthNetProfit - lastMonthNetProfit) / Math.abs(lastMonthNetProfit) * 100).toFixed(1);
+        if (profitPercent < 0) { profitArrow = 'fa-arrow-down'; profitColor = 'text-danger'; }
+      }
+      // 更新仪表盘
+      document.getElementById('totalDolls').textContent = totalDolls;
+      document.getElementById('totalValue').textContent = `¥${totalValue.toFixed(2)}`;
+      document.getElementById('todaySales').textContent = `¥${todaySalesAmount.toFixed(2)}`;
+      document.getElementById('totalProfit').textContent = `¥${monthNetProfit.toFixed(2)}`;
+      // 百分比
+      document.getElementById('totalDollsPercent').textContent = `${dollsPercent}%`;
+      document.getElementById('totalDollsArrow').className = `fa ${dollsArrow} mr-1 ${dollsColor}`;
+      document.getElementById('totalDollsPercent').className = `font-medium ${dollsColor}`;
+      document.getElementById('todaySalesPercent').textContent = `${salesPercent}%`;
+      document.getElementById('todaySalesArrow').className = `fa ${salesArrow} mr-1 ${salesColor}`;
+      document.getElementById('todaySalesPercent').className = `font-medium ${salesColor}`;
+      document.getElementById('totalProfitPercent').textContent = `${profitPercent}%`;
+      document.getElementById('totalProfitArrow').className = `fa ${profitArrow} mr-1 ${profitColor}`;
+      document.getElementById('totalProfitPercent').className = `font-medium ${profitColor}`;
+      // 利润汇总
+      const totalSales = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+      const totalCost = sales.reduce((sum, sale) => sum + sale.cost, 0);
+      const totalExpenses = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+      document.getElementById('totalSalesAmount').textContent = `¥${totalSales.toFixed(2)}`;
+      document.getElementById('totalCostAmount').textContent = `¥${totalCost.toFixed(2)}`;
+      document.getElementById('totalProfitAmount').textContent = `¥${(sales.reduce((sum, sale) => sum + sale.profit, 0) - totalExpenses).toFixed(2)}`;
+      document.getElementById('totalExpensesAmount').textContent = `¥${totalExpenses.toFixed(2)}`;
+    }
+    // ========== END ==========
   </script>
 </body>
 </html>
