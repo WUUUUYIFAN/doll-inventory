@@ -66,14 +66,26 @@
       font-size: 16px;
       position: relative;
     }
-    .flatpickr-day .profit-tip {
-      font-size: 10px;
-      line-height: 1;
-      margin-top: 1px;
-      position: static;
-      z-index: 2;
+    .flatpickr-day[data-profit]:hover::after {
+      content: attr(data-profit);
+      position: absolute;
+      left: 50%;
+      top: 110%;
+      transform: translateX(-50%);
+      background: #222;
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 10;
       pointer-events: none;
-      opacity: 0.7;
+    }
+    .flatpickr-day.profit-positive {
+      color: #10B981 !important;
+    }
+    .flatpickr-day.profit-negative {
+      color: #EF4444 !important;
     }
   </style>
 </head>
@@ -2243,16 +2255,10 @@
               const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
               profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
             }
-            console.log('onDayCreate', dateStr, profit);
-            // 只显示有盈亏的日期
+            // 只显示有盈亏的日期，采用气泡提示
             if (profit !== 0) {
-              dayElem.style.display = 'flex';
-              dayElem.style.flexDirection = 'column';
-              dayElem.style.alignItems = 'center';
-              const profitDiv = document.createElement('div');
-              profitDiv.className = 'profit-tip text-xs mt-0.5 leading-tight ' + (profit > 0 ? 'text-green-500' : 'text-red-500');
-              profitDiv.textContent = `¥${profit.toFixed(2)}`;
-              dayElem.appendChild(profitDiv);
+              dayElem.setAttribute('data-profit', `¥${profit.toFixed(2)}`);
+              dayElem.classList.add(profit > 0 ? 'profit-positive' : 'profit-negative');
             }
           }
         });
