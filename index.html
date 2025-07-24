@@ -2187,20 +2187,32 @@
           },
           onDayCreate: function(dObj, dStr, fp, dayElem) {
             const date = dayElem.dateObj;
-            const dateStr = date.toISOString().slice(0,10);
+            // 生成 yyyy-mm-dd 格式
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${y}-${m}-${d}`;
             let profit = 0;
             if (window.sales) {
-              const salesOnDay = sales.filter(sale => sale.timestamp.slice(0,10) === dateStr);
+              const salesOnDay = sales.filter(sale => sale.timestamp && sale.timestamp.slice(0,10) === dateStr);
               profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
             }
             if (window.expenses) {
               const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
               profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
             }
-            const profitDiv = document.createElement('div');
-            profitDiv.className = 'text-xs mt-0.5 ' + (profit >= 0 ? 'text-green-500' : 'text-red-500');
-            profitDiv.textContent = `¥${profit.toFixed(2)}`;
-            dayElem.appendChild(profitDiv);
+            // 只显示有盈亏的日期
+            if (profit !== 0) {
+              // 美化：用flex纵向排列，利润小字在下
+              dayElem.style.display = 'flex';
+              dayElem.style.flexDirection = 'column';
+              dayElem.style.alignItems = 'center';
+              const profitDiv = document.createElement('div');
+              profitDiv.className = 'text-xs mt-0.5 leading-tight ' + (profit > 0 ? 'text-green-500' : 'text-red-500');
+              profitDiv.style.fontSize = '10px';
+              profitDiv.textContent = `¥${profit.toFixed(2)}`;
+              dayElem.appendChild(profitDiv);
+            }
           }
         });
       }
