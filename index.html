@@ -2187,11 +2187,8 @@
           },
           onDayCreate: function(dObj, dStr, fp, dayElem) {
             const date = dayElem.dateObj;
-            // 生成 yyyy-mm-dd 格式
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const d = String(date.getDate()).padStart(2, '0');
-            const dateStr = `${y}-${m}-${d}`;
+            // 统一用 toISOString().slice(0,10) 得到 yyyy-mm-dd
+            const dateStr = date.toISOString().slice(0,10);
             let profit = 0;
             if (window.sales) {
               const salesOnDay = sales.filter(sale => sale.timestamp && sale.timestamp.slice(0,10) === dateStr);
@@ -2203,7 +2200,6 @@
             }
             // 只显示有盈亏的日期
             if (profit !== 0) {
-              // 美化：用flex纵向排列，利润小字在下
               dayElem.style.display = 'flex';
               dayElem.style.flexDirection = 'column';
               dayElem.style.alignItems = 'center';
