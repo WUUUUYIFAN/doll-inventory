@@ -236,6 +236,21 @@
         </div>
       </section>
       
+      <!-- 利润日历 -->
+      <section class="mb-8">
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">利润日历</h2>
+            <div>
+              <button id="prevMonthBtn" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 mr-2"><i class="fa fa-chevron-left"></i></button>
+              <span id="calendarMonth" class="font-medium text-gray-700"></span>
+              <button id="nextMonthBtn" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 ml-2"><i class="fa fa-chevron-right"></i></button>
+            </div>
+          </div>
+          <div id="profitCalendar"></div>
+        </div>
+      </section>
+      
       <!-- 汇率信息 -->
       <div class="bg-blue-50 border-l-4 border-primary p-4 mb-6 rounded-r">
         <div class="flex items-center">
@@ -2371,6 +2386,94 @@
       document.getElementById('totalProfitAmount').textContent = `¥${(sales.reduce((sum, sale) => sum + sale.profit, 0) - totalExpenses).toFixed(2)}`;
       document.getElementById('totalExpensesAmount').textContent = `¥${totalExpenses.toFixed(2)}`;
     }
+    // ========== END ==========
+
+    // ========== 利润日历 ==========
+    let calendarYear, calendarMonth;
+    function renderProfitCalendar(year, month) {
+      // 计算本月第一天和最后一天
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      // 计算本月1号是星期几
+      const startWeek = firstDay.getDay() || 7; // 周日为7
+      // 计算日历总格数（6行7列=42格）
+      const totalCells = 42;
+      // 生成日期数组
+      const days = [];
+      for (let i = 1; i <= lastDay.getDate(); i++) {
+        days.push(i);
+      }
+      // 填充前置空格
+      for (let i = 1; i < startWeek; i++) {
+        days.unshift(null);
+      }
+      // 填充后置空格
+      while (days.length < totalCells) {
+        days.push(null);
+      }
+      // 生成表格
+      let html = '<table class="w-full text-center table-fixed"><thead><tr>';
+      ['一','二','三','四','五','六','日'].forEach(d => {
+        html += `<th class="py-1 text-gray-500">${d}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      for (let i = 0; i < totalCells; i += 7) {
+        html += '<tr>';
+        for (let j = 0; j < 7; j++) {
+          const day = days[i + j];
+          let cell = '';
+          if (day) {
+            // 计算日期字符串
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            // 计算利润
+            let profit = 0;
+            if (window.sales) {
+              const salesOnDay = sales.filter(sale => sale.timestamp && sale.timestamp.slice(0,10) === dateStr);
+              profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
+            }
+            if (window.expenses) {
+              const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
+              profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+            }
+            let profitClass = '';
+            if (profit > 0) profitClass = 'text-success';
+            else if (profit < 0) profitClass = 'text-danger';
+            // 高亮今天
+            const today = new Date();
+            const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+            cell = `<div class="font-bold ${isToday ? 'bg-primary/10 rounded' : ''}">${day}</div>
+                    <div class="text-xs ${profitClass}">${profit !== 0 ? '¥'+profit.toFixed(2) : ''}</div>`;
+          }
+          html += `<td class="py-2 border ${day ? 'bg-white' : 'bg-gray-50'}">${cell}</td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      document.getElementById('profitCalendar').innerHTML = html;
+      // 显示月份
+      document.getElementById('calendarMonth').textContent = `${year}年${month+1}月`;
+    }
+    // 切换月份
+    function changeCalendarMonth(offset) {
+      calendarMonth += offset;
+      if (calendarMonth < 0) {
+        calendarMonth = 11;
+        calendarYear--;
+      } else if (calendarMonth > 11) {
+        calendarMonth = 0;
+        calendarYear++;
+      }
+      renderProfitCalendar(calendarYear, calendarMonth);
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      // 初始化为本月
+      const now = new Date();
+      calendarYear = now.getFullYear();
+      calendarMonth = now.getMonth();
+      renderProfitCalendar(calendarYear, calendarMonth);
+      document.getElementById('prevMonthBtn').onclick = () => changeCalendarMonth(-1);
+      document.getElementById('nextMonthBtn').onclick = () => changeCalendarMonth(1);
+    });
     // ========== END ==========
   </script>
 </body>
