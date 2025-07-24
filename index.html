@@ -907,6 +907,9 @@
       document.getElementById('exchangeRateValue').textContent = EXCHANGE_RATE.toFixed(2);
       document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
       document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
     
     // 保存数据到localStorage
@@ -930,6 +933,9 @@
           }
         }, 1500);
       }
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
     
     // 显示添加娃娃表单
@@ -1395,6 +1401,9 @@
       
       // 关闭模态框
       closeSellModal();
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
     
     // 更新销售列表
@@ -1595,6 +1604,9 @@
       
       // 显示提示
       showToast('成功', '销售记录已删除', 'success');
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
     
     // 显示汇率设置模态框
@@ -1861,6 +1873,9 @@
         document.getElementById('currentExchangeRate').textContent = EXCHANGE_RATE.toFixed(2);
         document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
         showToast('成功', '已从 Google Drive 加载数据', 'success');
+        // 保证全局可用
+        window.sales = sales;
+        window.expenses = expenses;
       } catch (error) {
         showToast('错误', '加载失败: ' + (error.message || JSON.stringify(error)), 'error');
       }
@@ -1980,6 +1995,9 @@
       document.getElementById('newExchangeRate').value = EXCHANGE_RATE.toFixed(2);
       closeHistoryModal();
       showToast('成功', '已恢复历史快照', 'success');
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
 
     // 支出管理相关
@@ -2025,6 +2043,9 @@
       updateExpensesTable();
       document.getElementById('expenseForm').reset();
       document.getElementById('expenseId').value = '';
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
     function updateExpensesTable() {
       const tbody = document.getElementById('expensesTableBody');
@@ -2064,6 +2085,9 @@
       updateDashboard();
       updateExpensesTable();
       showToast('成功', '支出已删除', 'success');
+      // 保证全局可用
+      window.sales = sales;
+      window.expenses = expenses;
     }
 
     // 新增 updateDollNameList 函数
