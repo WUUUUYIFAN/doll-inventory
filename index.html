@@ -1286,20 +1286,18 @@
     // 搜索可销售的娃娃
     function searchSellDolls() {
       const searchTerm = document.getElementById('sellDollSearch').value.toLowerCase().trim();
-      
       if (!searchTerm) {
         document.getElementById('sellDollDropdown').classList.add('hidden');
         return;
       }
-      
       const availableDolls = dolls.filter(doll => doll.quantity > 0);
-      const filteredDolls = availableDolls.filter(doll =>
+      // 合并同名商品
+      const mergedDolls = mergeDollsByName(availableDolls);
+      const filteredDolls = mergedDolls.filter(doll =>
         doll.name.toLowerCase().includes(searchTerm)
       );
-      
       const dropdown = document.getElementById('sellDollDropdown');
       dropdown.innerHTML = '';
-      
       if (filteredDolls.length === 0) {
         const item = document.createElement('div');
         item.className = 'px-4 py-3 text-gray-400 text-sm text-center select-none';
@@ -1317,7 +1315,7 @@
           `;
           item.addEventListener('click', () => {
             document.getElementById('sellDollSearch').value = doll.name;
-            document.getElementById('sellDollId').value = doll.id;
+            document.getElementById('sellDollId').value = doll.id; // 合并id
             document.getElementById('sellDollDropdown').classList.add('hidden');
             document.getElementById('sellQuantity').focus();
           });
@@ -1327,7 +1325,6 @@
           dropdown.appendChild(item);
         });
       }
-      
       dropdown.classList.remove('hidden');
       const input = document.getElementById('sellDollSearch');
       // 动态设置下拉宽度和输入框一致
