@@ -150,6 +150,9 @@
       </div>
     </header>
 
+    <!-- 在顶部导航下方插入云端备份时间显示 -->
+    <div id="cloudBackupInfo" class="w-full bg-blue-50 text-blue-800 text-sm py-2 px-4 hidden"></div>
+
     <!-- 主要内容 -->
     <main class="flex-grow container mx-auto px-4 py-6">
       <!-- 仪表盘 -->
@@ -711,6 +714,24 @@
     </div>
   </div>
 
+  <!-- 冲突提示弹窗 -->
+  <div id="conflictModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg w-[90vw] max-w-md p-6 relative">
+      <h3 class="text-lg font-bold mb-4">数据冲突提示</h3>
+      <div class="mb-4 text-sm text-gray-700">
+        检测到本地和云端数据不一致，请选择要保留的数据：
+        <div class="mt-2">
+          <div>本地数据更新时间：<span id="localUpdateTime" class="font-mono"></span></div>
+          <div>云端备份时间：<span id="cloudUpdateTime" class="font-mono"></span></div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button id="keepLocalBtn" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all-300">保留本地数据</button>
+        <button id="useCloudBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all-300">以云端为准</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 全局数据
     let dolls = [];
@@ -899,6 +920,9 @@
         // 强制弹出账号选择
         tokenClient.requestAccessToken({prompt: 'select_account'});
       });
+
+      // 云端备份时间显示和冲突检测
+      autoCheckCloudSync();
     });
     
     // 从localStorage加载数据
@@ -2550,6 +2574,106 @@
       if (!modal.classList.contains('hidden') && e.target === modal) {
         modal.classList.add('hidden');
       }
+    });
+
+    // 云端备份时间显示和冲突检测
+    async function getCloudBackupMeta() {
+      // 获取云端 doll_inventory.json 文件的 lastUpdated
+      if (!gapiInited || !gisInited) return null;
+      try {
+        const response = await gapi.client.drive.files.list({
+          q: "name='doll_inventory.json' and mimeType='application/json' and trashed=false",
+          fields: 'files(id, name, modifiedTime)'
+        });
+        if (!response.result.files || response.result.files.length === 0) return null;
+        const fileId = response.result.files[0].id;
+        // 获取文件内容
+        const fileResp = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+        const data = fileResp.result;
+        return {
+          lastUpdated: data.lastUpdated || data.lastupdated || data.lastUpdate || response.result.files[0].modifiedTime,
+          data,
+          fileId,
+          modifiedTime: response.result.files[0].modifiedTime
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+    function showCloudBackupTime(timeStr) {
+      const el = document.getElementById('cloudBackupInfo');
+      if (!timeStr) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = `云端备份时间：${formatTime(timeStr)}`;
+      el.classList.remove('hidden');
+    }
+    function formatTime(t) {
+      if (!t) return '';
+      // 支持 ISO 字符串和时间戳
+      const d = new Date(t);
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+    }
+    function showConflictDialog(localTime, cloudTime, onCloud, onLocal) {
+      document.getElementById('localUpdateTime').textContent = formatTime(localTime);
+      document.getElementById('cloudUpdateTime').textContent = formatTime(cloudTime);
+      document.getElementById('conflictModal').classList.remove('hidden');
+      document.getElementById('useCloudBtn').onclick = function() {
+        document.getElementById('conflictModal').classList.add('hidden');
+        onCloud && onCloud();
+      };
+      document.getElementById('keepLocalBtn').onclick = function() {
+        document.getElementById('conflictModal').classList.add('hidden');
+        onLocal && onLocal();
+      };
+    }
+    function getLocalLastUpdated() {
+      // 优先取 sales/dolls/logs/expenses 里的 lastUpdated 字段
+      try {
+        const local = JSON.parse(localStorage.getItem('doll_inventory'));
+        if (local && local.lastUpdated) return local.lastUpdated;
+      } catch(e) {}
+      // 兼容原有结构
+      const logs = JSON.parse(localStorage.getItem('logs')||'[]');
+      if (logs.length > 0 && logs[0].timestamp) return logs[0].timestamp;
+      return null;
+    }
+    // 页面加载时自动检测云端备份并冲突提示
+    async function autoCheckCloudSync() {
+      if (!gapiInited || !gisInited) {
+        setTimeout(autoCheckCloudSync, 500);
+        return;
+      }
+      authenticate(async function() {
+        const cloudMeta = await getCloudBackupMeta();
+        if (!cloudMeta) return;
+        showCloudBackupTime(cloudMeta.lastUpdated);
+        // 获取本地 lastUpdated
+        let localTime = getLocalLastUpdated();
+        if (!localTime) {
+          // 本地无数据，直接用云端
+          loadFromDrive();
+          return;
+        }
+        // 比较时间
+        if (localTime !== cloudMeta.lastUpdated) {
+          showConflictDialog(localTime, cloudMeta.lastUpdated, function() {
+            // 以云端为准
+            loadFromDrive();
+          }, function() {
+            // 保留本地
+            // 不做操作
+          });
+        } else {
+          // 时间一致，自动同步
+          loadFromDrive();
+        }
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      // ...原有初始化代码...
+      autoCheckCloudSync();
     });
   </script>
 </body>
