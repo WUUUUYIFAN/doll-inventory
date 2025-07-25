@@ -223,18 +223,19 @@
         </div>
       </section>
       
-      <!-- 利润日历 -->
+      <!-- 利润热力格子 -->
       <section class="mb-8">
         <div class="bg-white rounded-xl shadow-md p-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-bold text-gray-900">利润日历</h2>
+            <h2 class="text-xl font-bold text-gray-900">利润热力格子</h2>
             <div>
               <button id="prevMonthBtn" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 mr-2"><i class="fa fa-chevron-left"></i></button>
               <span id="calendarMonth" class="font-medium text-gray-700"></span>
               <button id="nextMonthBtn" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 ml-2"><i class="fa fa-chevron-right"></i></button>
             </div>
           </div>
-          <div id="profitCalendar"></div>
+          <div id="profitHeatmap" class="flex flex-col gap-1"></div>
+          <div class="text-xs text-gray-400 mt-2">颜色越深表示利润/亏损越大，悬停可查看具体金额</div>
         </div>
       </section>
       
@@ -1077,7 +1078,7 @@
     // 更新娃娃表格
     function updateDollTable(filteredDolls = null) {
       console.log('当前dolls数据：', dolls); // 调试输出
-      const dollsToDisplay = filteredDolls || dolls;
+      const dollsToDisplay = mergeDollsByName(filteredDolls || dolls);
       const startIndex = (currentPage - 1) * dollsPerPage;
       const endIndex = Math.min(startIndex + dollsPerPage, dollsToDisplay.length);
       const paginatedDolls = dollsToDisplay.slice(startIndex, endIndex);
@@ -1110,7 +1111,7 @@
                 </div>
                 <div>
                   <div class="text-sm font-medium text-gray-900">${doll.name}</div>
-                  <div class="text-xs text-gray-500">ID: ${doll.id.substring(0, 8)}...</div>
+                  <div class="text-xs text-gray-500">ID: ${doll.id.split(',')[0].substring(0, 8)}...${doll.id.includes(',') ? ' 等' : ''}</div>
                 </div>
               </div>
             </td>
@@ -2375,72 +2376,79 @@
     }
     // ========== END ==========
 
-    // ========== 利润日历 ==========
+    // ========== 利润热力格子 ==========
     let calendarYear, calendarMonth;
-    function renderProfitCalendar(year, month) {
-      // 计算本月第一天和最后一天
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      // 计算本月1号是星期几
-      const startWeek = firstDay.getDay() || 7; // 周日为7
-      // 计算日历总格数（6行7列=42格）
-      const totalCells = 42;
-      // 生成日期数组
-      const days = [];
-      for (let i = 1; i <= lastDay.getDate(); i++) {
-        days.push(i);
-      }
-      // 填充前置空格
-      for (let i = 1; i < startWeek; i++) {
-        days.unshift(null);
-      }
-      // 填充后置空格
-      while (days.length < totalCells) {
-        days.push(null);
-      }
-      // 生成表格
-      let html = '<table class="w-full text-center table-fixed"><thead><tr>';
-      ['一','二','三','四','五','六','日'].forEach(d => {
-        html += `<th class="py-1 text-gray-500">${d}</th>`;
-      });
-      html += '</tr></thead><tbody>';
-      for (let i = 0; i < totalCells; i += 7) {
-        html += '<tr>';
-        for (let j = 0; j < 7; j++) {
-          const day = days[i + j];
-          let cell = '';
-          if (day) {
-            // 计算日期字符串
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            // 计算利润
-            let profit = 0;
-            if (window.sales) {
-              const salesOnDay = sales.filter(sale => sale.timestamp && sale.timestamp.slice(0,10) === dateStr);
-              profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
-            }
-            if (window.expenses) {
-              const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
-              profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
-            }
-            let profitClass = '';
-            if (profit > 0) profitClass = 'text-success';
-            else if (profit < 0) profitClass = 'text-danger';
-            // 高亮今天
-            const today = new Date();
-            const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-            cell = `<div class="font-bold ${isToday ? 'bg-primary/10 rounded' : ''}">${day}</div>
-                    <div class="text-xs ${profitClass}">${profit !== 0 ? '¥'+profit.toFixed(2) : ''}</div>`;
-          }
-          html += `<td class="py-2 border ${day ? 'bg-white' : 'bg-gray-50'}">${cell}</td>`;
+    function getMonthProfitArray(year, month) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const arr = [];
+      let maxProfit = 0, minProfit = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        let profit = 0;
+        if (window.sales) {
+          const salesOnDay = sales.filter(sale => sale.timestamp && sale.timestamp.slice(0,10) === dateStr);
+          profit = salesOnDay.reduce((sum, sale) => sum + sale.profit, 0);
         }
-        html += '</tr>';
+        if (window.expenses) {
+          const expensesOnDay = expenses.filter(exp => exp.timestamp && exp.timestamp.slice(0,10) === dateStr);
+          profit -= expensesOnDay.reduce((sum, exp) => sum + (parseFloat(exp.amount)||0), 0);
+        }
+        arr.push({day: d, profit});
+        if (profit > maxProfit) maxProfit = profit;
+        if (profit < minProfit) minProfit = profit;
       }
-      html += '</tbody></table>';
-      document.getElementById('profitCalendar').innerHTML = html;
-      // 显示月份
+      return {arr, maxProfit, minProfit};
+    }
+    function getHeatColor(profit, maxProfit, minProfit) {
+      // 绿色正利润，红色负利润，灰色0
+      if (profit === 0) return 'bg-gray-200 text-gray-400';
+      if (profit > 0) {
+        // 利润越大颜色越深
+        const percent = maxProfit ? Math.min(1, profit / maxProfit) : 0.2;
+        // 绿色深浅
+        return `bg-green-${percent > 0.8 ? '700' : percent > 0.6 ? '600' : percent > 0.4 ? '500' : percent > 0.2 ? '400' : '300'} text-white`;
+      } else {
+        // 亏损越大颜色越深
+        const percent = minProfit ? Math.min(1, profit / minProfit) : 0.2;
+        // 红色深浅
+        return `bg-red-${percent > 0.8 ? '700' : percent > 0.6 ? '600' : percent > 0.4 ? '500' : percent > 0.2 ? '400' : '300'} text-white`;
+      }
+    }
+    function renderProfitHeatmap(year, month) {
+      const firstDay = new Date(year, month, 1);
+      const startWeek = firstDay.getDay() || 7; // 周日为7
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const {arr, maxProfit, minProfit} = getMonthProfitArray(year, month);
+      // 填充前置空格
+      const days = Array(startWeek - 1).fill(null).concat(arr);
+      // 补齐到整周
+      while (days.length % 7 !== 0) days.push(null);
+      // 生成格子
+      let html = '<div class="flex flex-row mb-1 text-xs text-gray-500">';
+      ['一','二','三','四','五','六','日'].forEach(d => {
+        html += `<div class="w-7 text-center">${d}</div>`;
+      });
+      html += '</div>';
+      for (let i = 0; i < days.length; i += 7) {
+        html += '<div class="flex flex-row gap-1 mb-1">';
+        for (let j = 0; j < 7; j++) {
+          const item = days[i + j];
+          if (item) {
+            const today = new Date();
+            const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === item.day;
+            const color = getHeatColor(item.profit, maxProfit, minProfit);
+            html += `<div class="w-7 h-7 flex flex-col items-center justify-center rounded cursor-pointer ${color} ${isToday ? 'ring-2 ring-primary ring-offset-2' : ''}" title="${year}-${String(month+1).padStart(2,'0')}-${String(item.day).padStart(2,'0')}\n利润：¥${item.profit.toFixed(2)}">
+              <span class="text-xs font-bold">${item.day}</span>
+            </div>`;
+          } else {
+            html += '<div class="w-7 h-7"></div>';
+          }
+        }
+        html += '</div>';
+      }
+      document.getElementById('profitHeatmap').innerHTML = html;
       document.getElementById('calendarMonth').textContent = `${year}年${month+1}月`;
     }
-    // 切换月份
     function changeCalendarMonth(offset) {
       calendarMonth += offset;
       if (calendarMonth < 0) {
@@ -2450,18 +2458,45 @@
         calendarMonth = 0;
         calendarYear++;
       }
-      renderProfitCalendar(calendarYear, calendarMonth);
+      renderProfitHeatmap(calendarYear, calendarMonth);
     }
     document.addEventListener('DOMContentLoaded', function() {
-      // 初始化为本月
       const now = new Date();
       calendarYear = now.getFullYear();
       calendarMonth = now.getMonth();
-      renderProfitCalendar(calendarYear, calendarMonth);
+      renderProfitHeatmap(calendarYear, calendarMonth);
       document.getElementById('prevMonthBtn').onclick = () => changeCalendarMonth(-1);
       document.getElementById('nextMonthBtn').onclick = () => changeCalendarMonth(1);
     });
     // ========== END ==========
+
+    // 在 updateDollTable 前添加合并函数
+    function mergeDollsByName(dollsArr) {
+      const map = new Map();
+      dollsArr.forEach(doll => {
+        if (!map.has(doll.name)) {
+          map.set(doll.name, {
+            ...doll,
+            quantity: doll.quantity,
+            location: [doll.location],
+            ids: [doll.id] // 记录所有id，方便后续操作
+          });
+        } else {
+          const item = map.get(doll.name);
+          item.quantity += doll.quantity;
+          if (!item.location.includes(doll.location)) {
+            item.location.push(doll.location);
+          }
+          item.ids.push(doll.id);
+        }
+      });
+      // 把 location 数组转成字符串
+      return Array.from(map.values()).map(d => ({
+        ...d,
+        location: d.location.join(', '),
+        id: d.ids.join(',') // 合并id，后续如需操作可弹窗选择
+      }));
+    }
   </script>
 </body>
 </html>
