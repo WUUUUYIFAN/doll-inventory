@@ -651,6 +651,24 @@
     </div>
   </div>
 
+  <!-- 娃娃选择模态框 -->
+  <div id="dollSelectionModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 id="dollSelectionTitle" class="text-lg font-bold text-gray-900">选择娃娃</h3>
+        <button id="closeDollSelectionModalBtn" class="text-gray-400 hover:text-gray-500 transition-all-300">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="px-6 py-4">
+        <p id="dollSelectionMessage" class="text-sm text-gray-600 mb-4">检测到多个同名娃娃，请选择要操作的娃娃：</p>
+        <div id="dollSelectionList" class="space-y-2 max-h-64 overflow-y-auto">
+          <!-- 动态内容 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 支出管理模态框 -->
   <div id="expensesModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 overflow-hidden">
@@ -1088,8 +1106,40 @@
     
     // 显示编辑娃娃表单
     function showEditDollForm(id) {
-      const doll = dolls.find(d => d.id === id);
-      if (!doll) return;
+      let doll = null;
+      
+      // 处理合并ID的情况
+      if (id.includes(',')) {
+        // 如果是合并的ID，显示选择对话框
+        const dollIds = id.split(',');
+        const dollOptions = dollIds.map(dollId => {
+          const foundDoll = dolls.find(d => d.id === dollId);
+          return foundDoll ? foundDoll : null;
+        }).filter(Boolean);
+        
+        if (dollOptions.length === 0) {
+          showToast('错误', '未找到要编辑的娃娃', 'error');
+          return;
+        }
+        
+        if (dollOptions.length === 1) {
+          // 只有一个娃娃，直接编辑
+          doll = dollOptions[0];
+        } else {
+          // 多个娃娃，显示选择对话框
+          showDollSelectionModal(dollOptions, 'edit');
+          return;
+        }
+      } else {
+        // 单个ID的情况
+        doll = dolls.find(d => d.id === id);
+      }
+      
+      if (!doll) {
+        showToast('错误', '未找到要编辑的娃娃', 'error');
+        return;
+      }
+      
       document.getElementById('modalTitle').textContent = '编辑娃娃';
       document.getElementById('dollId').value = doll.id;
       document.getElementById('dollName').value = doll.name;
@@ -1111,18 +1161,49 @@
     
     // 删除娃娃
     function deleteDoll(id) {
-      if (!confirm('确定要删除这个娃娃吗？此操作不可撤销。')) return;
-      
-      const doll = dolls.find(d => d.id === id);
-      if (doll) {
-        dolls = dolls.filter(d => d.id !== id);
-        addLog(`删除了娃娃: ${doll.name}`);
-        showToast('成功', '娃娃已删除', 'success');
+      // 处理合并ID的情况
+      if (id.includes(',')) {
+        const dollIds = id.split(',');
+        const dollOptions = dollIds.map(dollId => {
+          const foundDoll = dolls.find(d => d.id === dollId);
+          return foundDoll ? foundDoll : null;
+        }).filter(Boolean);
         
-        saveData();
-        updateDollTable();
-        updateDashboard();
-        updateLocationFilter();
+        if (dollOptions.length === 0) {
+          showToast('错误', '未找到要删除的娃娃', 'error');
+          return;
+        }
+        
+        if (dollOptions.length === 1) {
+          // 只有一个娃娃，直接删除
+          const doll = dollOptions[0];
+          if (confirm(`确定要删除娃娃 "${doll.name}" 吗？此操作不可撤销。`)) {
+            dolls = dolls.filter(d => d.id !== doll.id);
+            addLog(`删除了娃娃: ${doll.name}`);
+            showToast('成功', '娃娃已删除', 'success');
+            saveData();
+            updateDollTable();
+            updateDashboard();
+            updateLocationFilter();
+          }
+        } else {
+          // 多个娃娃，显示选择对话框
+          showDollSelectionModal(dollOptions, 'delete');
+        }
+      } else {
+        // 单个ID的情况
+        const doll = dolls.find(d => d.id === id);
+        if (doll) {
+          if (confirm(`确定要删除娃娃 "${doll.name}" 吗？此操作不可撤销。`)) {
+            dolls = dolls.filter(d => d.id !== id);
+            addLog(`删除了娃娃: ${doll.name}`);
+            showToast('成功', '娃娃已删除', 'success');
+            saveData();
+            updateDollTable();
+            updateDashboard();
+            updateLocationFilter();
+          }
+        }
       }
     }
     
@@ -2123,6 +2204,9 @@
       document.getElementById('closeExpensesModalBtn').addEventListener('click', closeExpensesModal);
       document.getElementById('cancelExpenseBtn').addEventListener('click', closeExpensesModal);
       document.getElementById('expenseForm').addEventListener('submit', saveExpense);
+      
+      // 娃娃选择模态框事件监听器
+      document.getElementById('closeDollSelectionModalBtn').addEventListener('click', closeDollSelectionModal);
     });
     function showExpensesModal() {
       document.getElementById('expenseForm').reset();
@@ -2747,6 +2831,56 @@
       autoCheckCloudSync();
     });
 
+    // 娃娃选择模态框相关函数
+    function showDollSelectionModal(dollOptions, action) {
+      const modal = document.getElementById('dollSelectionModal');
+      const title = document.getElementById('dollSelectionTitle');
+      const message = document.getElementById('dollSelectionMessage');
+      const list = document.getElementById('dollSelectionList');
+      
+      // 设置标题和消息
+      if (action === 'edit') {
+        title.textContent = '选择要编辑的娃娃';
+        message.textContent = '检测到多个同名娃娃，请选择要编辑的娃娃：';
+      } else if (action === 'delete') {
+        title.textContent = '选择要删除的娃娃';
+        message.textContent = '检测到多个同名娃娃，请选择要删除的娃娃：';
+      }
+      
+      // 生成娃娃列表
+      list.innerHTML = '';
+      dollOptions.forEach(doll => {
+        const item = document.createElement('div');
+        item.className = 'p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-all-300';
+        item.innerHTML = `
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="font-medium text-gray-900">${doll.name}</div>
+              <div class="text-sm text-gray-500">库存: ${doll.quantity} | 位置: ${doll.location} | 进价: $${doll.purchasePrice.toFixed(2)}</div>
+            </div>
+            <div class="text-sm text-gray-400">ID: ${doll.id.substring(0, 8)}...</div>
+          </div>
+        `;
+        
+        item.addEventListener('click', () => {
+          closeDollSelectionModal();
+          if (action === 'edit') {
+            showEditDollForm(doll.id);
+          } else if (action === 'delete') {
+            deleteDoll(doll.id);
+          }
+        });
+        
+        list.appendChild(item);
+      });
+      
+      modal.classList.remove('hidden');
+    }
+    
+    function closeDollSelectionModal() {
+      document.getElementById('dollSelectionModal').classList.add('hidden');
+    }
+    
     // 新增滚动到库存表格函数
     function scrollToDollTable() {
       const el = document.getElementById('dollTableSection');
