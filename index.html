@@ -1849,45 +1849,7 @@
       showToast('成功', '汇率已更新', 'success');
     }
     
-    // 更新仪表盘数据
-    function updateDashboard() {
-      // 计算总库存
-      const totalDolls = dolls.reduce((sum, doll) => sum + doll.quantity, 0);
-      // 计算物品总价值
-      const totalValue = dolls.reduce((sum, doll) => sum + doll.quantity * doll.purchasePrice * EXCHANGE_RATE, 0);
-      
-      // 计算今日销售额
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const todaySales = sales.filter(sale => {
-        const saleDate = new Date(sale.timestamp);
-        saleDate.setHours(0, 0, 0, 0);
-        return saleDate.getTime() === today.getTime();
-      });
-      
-      const todaySalesAmount = todaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-      
-      // 计算总利润
-      const salesProfit = sales.reduce((sum, sale) => sum + sale.profit, 0);
-      const totalExpenses = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
-      const totalProfit = salesProfit - totalExpenses;
-      
-      // 更新仪表盘
-      document.getElementById('totalDolls').textContent = totalDolls;
-      document.getElementById('totalValue').textContent = `¥${totalValue.toFixed(2)}`;
-      document.getElementById('todaySales').textContent = `¥${todaySalesAmount.toFixed(2)}`;
-      document.getElementById('totalProfit').textContent = `¥${totalProfit.toFixed(2)}`;
-      
-      // 更新利润汇总
-      const totalSales = sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-      const totalCost = sales.reduce((sum, sale) => sum + sale.cost, 0);
-      
-      document.getElementById('totalSalesAmount').textContent = `¥${totalSales.toFixed(2)}`;
-      document.getElementById('totalCostAmount').textContent = `¥${totalCost.toFixed(2)}`;
-      document.getElementById('totalProfitAmount').textContent = `¥${totalProfit.toFixed(2)}`;
-      document.getElementById('totalExpensesAmount').textContent = `¥${totalExpenses.toFixed(2)}`;
-    }
+
     
     // 添加日志
     function addLog(message) {
@@ -2467,11 +2429,21 @@
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().slice(0,10);
-      // 今日销售
-      const todaySales = sales.filter(sale => sale.timestamp.slice(0,10) === todayStr);
+      // 今日销售 - 修复日期比较逻辑
+      const todaySales = sales.filter(sale => {
+        if (!sale.timestamp) return false;
+        const saleDate = new Date(sale.timestamp);
+        saleDate.setHours(0, 0, 0, 0);
+        return saleDate.getTime() === today.getTime();
+      });
       const todaySalesAmount = todaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
-      // 昨日销售
-      const yesterdaySales = sales.filter(sale => sale.timestamp.slice(0,10) === yesterdayStr);
+      // 昨日销售 - 修复日期比较逻辑
+      const yesterdaySales = sales.filter(sale => {
+        if (!sale.timestamp) return false;
+        const saleDate = new Date(sale.timestamp);
+        saleDate.setHours(0, 0, 0, 0);
+        return saleDate.getTime() === yesterday.getTime();
+      });
       const yesterdaySalesAmount = yesterdaySales.reduce((sum, sale) => sum + sale.totalPrice, 0);
       // 总利润（本月/上月）
       const now = new Date();
