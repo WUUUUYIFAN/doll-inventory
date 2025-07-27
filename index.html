@@ -796,20 +796,32 @@
       gapi.load('client', initializeGapiClient);
     }
     async function initializeGapiClient() {
-      await gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: [DISCOVERY_DOC],
-      });
-      gapiInited = true;
+      try {
+        await gapi.client.init({
+          apiKey: API_KEY,
+          discoveryDocs: [DISCOVERY_DOC],
+        });
+        gapiInited = true;
+        console.log('[Google API] gapi 初始化成功');
+      } catch (error) {
+        console.error('[Google API] gapi 初始化失败:', error);
+        gapiInited = false;
+      }
     }
     // GIS 加载后初始化
     function gisLoaded() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '',
-      });
-      gisInited = true;
+      try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: '',
+        });
+        gisInited = true;
+        console.log('[Google API] gis 初始化成功');
+      } catch (error) {
+        console.error('[Google API] gis 初始化失败:', error);
+        gisInited = false;
+      }
     }
     // 登录并获取 access_token
     function authenticate(callback) {
@@ -927,14 +939,30 @@
       // 云同步按钮绑定新版认证
       document.getElementById('googleDriveSaveBtn').addEventListener('click', function() {
         if (!gapiInited || !gisInited) {
-          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          showToast('错误', 'Google API 未初始化，正在重试...', 'warning');
+          // 尝试重新初始化
+          setTimeout(() => {
+            if (gapiInited && gisInited) {
+              authenticate(saveToDrive);
+            } else {
+              showToast('错误', 'Google API 初始化失败，请刷新页面重试', 'error');
+            }
+          }, 1000);
           return;
         }
         authenticate(saveToDrive);
       });
       document.getElementById('googleDriveLoadBtn').addEventListener('click', function() {
         if (!gapiInited || !gisInited) {
-          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          showToast('错误', 'Google API 未初始化，正在重试...', 'warning');
+          // 尝试重新初始化
+          setTimeout(() => {
+            if (gapiInited && gisInited) {
+              authenticate(loadFromDrive);
+            } else {
+              showToast('错误', 'Google API 初始化失败，请刷新页面重试', 'error');
+            }
+          }, 1000);
           return;
         }
         authenticate(loadFromDrive);
@@ -950,7 +978,16 @@
       // 在 DOMContentLoaded 事件中为切换账号按钮绑定事件
       document.getElementById('googleDriveSwitchAccountBtn').addEventListener('click', function() {
         if (!gapiInited || !gisInited) {
-          showToast('错误', 'Google API 未初始化，请稍后再试', 'error');
+          showToast('错误', 'Google API 未初始化，正在重试...', 'warning');
+          // 尝试重新初始化
+          setTimeout(() => {
+            if (gapiInited && gisInited) {
+              // 强制弹出账号选择
+              tokenClient.requestAccessToken({prompt: 'select_account'});
+            } else {
+              showToast('错误', 'Google API 初始化失败，请刷新页面重试', 'error');
+            }
+          }, 1000);
           return;
         }
         // 强制弹出账号选择
@@ -959,6 +996,11 @@
 
       // 云端备份时间显示和冲突检测
       autoCheckCloudSync();
+      
+      // 延迟检查Google API状态
+      setTimeout(() => {
+        checkGoogleAPIStatus();
+      }, 2000);
     });
     
     // 从localStorage加载数据
@@ -2706,13 +2748,19 @@
     // 云端备份时间显示和冲突检测
     async function getCloudBackupMeta() {
       // 获取云端 doll_inventory.json 文件的 lastUpdated
-      if (!gapiInited || !gisInited) return null;
+      if (!gapiInited || !gisInited) {
+        console.log('[CloudSync] API 未初始化');
+        return null;
+      }
       try {
         const response = await gapi.client.drive.files.list({
           q: "name='doll_inventory.json' and mimeType='application/json' and trashed=false",
           fields: 'files(id, name, modifiedTime)'
         });
-        if (!response.result.files || response.result.files.length === 0) return null;
+        if (!response.result.files || response.result.files.length === 0) {
+          console.log('[CloudSync] 未找到云端文件');
+          return null;
+        }
         const fileId = response.result.files[0].id;
         // 获取文件内容
         const fileResp = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
@@ -2724,6 +2772,7 @@
           modifiedTime: response.result.files[0].modifiedTime
         };
       } catch (e) {
+        console.error('[CloudSync] 获取云端备份信息失败:', e);
         return null;
       }
     }
@@ -2769,34 +2818,56 @@
     // 页面加载时自动检测云端备份并冲突提示
     async function autoCheckCloudSync() {
       if (!gapiInited || !gisInited) {
-        setTimeout(autoCheckCloudSync, 500);
+        // 增加重试次数限制，避免无限重试
+        if (!window.cloudSyncRetryCount) {
+          window.cloudSyncRetryCount = 0;
+        }
+        if (window.cloudSyncRetryCount < 10) {
+          window.cloudSyncRetryCount++;
+          setTimeout(autoCheckCloudSync, 1000);
+        } else {
+          console.log('[CloudSync] 重试次数过多，停止自动检测');
+          window.cloudSyncRetryCount = 0;
+        }
         return;
       }
-      authenticate(async function() {
-        const cloudMeta = await getCloudBackupMeta();
-        if (!cloudMeta) return;
-        showCloudBackupTime(cloudMeta.lastUpdated);
-        // 获取本地 lastUpdated
-        let localTime = getLocalLastUpdated();
-        if (!localTime) {
-          // 本地无数据，直接用云端
-          loadFromDrive();
-          return;
-        }
-        // 比较时间
-        if (localTime !== cloudMeta.lastUpdated) {
-          showConflictDialog(localTime, cloudMeta.lastUpdated, function() {
-            // 以云端为准
-            loadFromDrive();
-          }, function() {
-            // 保留本地
-            // 不做操作
-          });
-        } else {
-          // 时间一致，自动同步
-          loadFromDrive();
-        }
-      });
+      
+      try {
+        authenticate(async function() {
+          try {
+            const cloudMeta = await getCloudBackupMeta();
+            if (!cloudMeta) {
+              console.log('[CloudSync] 未找到云端备份');
+              return;
+            }
+            showCloudBackupTime(cloudMeta.lastUpdated);
+            // 获取本地 lastUpdated
+            let localTime = getLocalLastUpdated();
+            if (!localTime) {
+              // 本地无数据，直接用云端
+              loadFromDrive();
+              return;
+            }
+            // 比较时间
+            if (localTime !== cloudMeta.lastUpdated) {
+              showConflictDialog(localTime, cloudMeta.lastUpdated, function() {
+                // 以云端为准
+                loadFromDrive();
+              }, function() {
+                // 保留本地
+                // 不做操作
+              });
+            } else {
+              // 时间一致，自动同步
+              loadFromDrive();
+            }
+          } catch (error) {
+            console.error('[CloudSync] 云端检测失败:', error);
+          }
+        });
+      } catch (error) {
+        console.error('[CloudSync] 认证失败:', error);
+      }
     }
     document.addEventListener('DOMContentLoaded', function() {
       // ...原有初始化代码...
@@ -2851,6 +2922,17 @@
     
     function closeDollSelectionModal() {
       document.getElementById('dollSelectionModal').classList.add('hidden');
+    }
+    
+    // Google API 状态检查函数
+    function checkGoogleAPIStatus() {
+      const status = {
+        gapi: gapiInited,
+        gis: gisInited,
+        ready: gapiInited && gisInited
+      };
+      console.log('[Google API] 状态检查:', status);
+      return status;
     }
     
     // 新增滚动到库存表格函数
