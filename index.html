@@ -1332,6 +1332,11 @@
     function closeSellModal() {
       document.getElementById('sellModal').classList.add('hidden');
       document.getElementById('sellDollDropdown').classList.add('hidden');
+      // 清理详细信息显示
+      const existingInfo = document.querySelector('.bg-blue-50');
+      if (existingInfo) {
+        existingInfo.remove();
+      }
     }
     
     // 搜索可销售的娃娃
@@ -1368,6 +1373,22 @@
             document.getElementById('sellDollSearch').value = doll.name;
             document.getElementById('sellDollId').value = doll.id; // 合并id
             document.getElementById('sellDollDropdown').classList.add('hidden');
+            // 显示选中娃娃的详细信息
+            const dollInfo = document.createElement('div');
+            dollInfo.className = 'mt-2 p-2 bg-blue-50 rounded text-sm';
+            dollInfo.innerHTML = `
+              <div class="font-medium text-blue-900">${doll.name}</div>
+              <div class="text-blue-700">库存: ${doll.quantity} | 位置: ${doll.location} | 进价: $${doll.purchasePrice.toFixed(2)}</div>
+            `;
+            // 移除之前的详细信息
+            const existingInfo = document.querySelector('.bg-blue-50');
+            if (existingInfo) {
+              existingInfo.remove();
+            }
+            // 插入到销售表单中
+            const sellForm = document.getElementById('sellForm');
+            const firstField = sellForm.querySelector('.mb-4');
+            firstField.parentNode.insertBefore(dollInfo, firstField.nextSibling);
             document.getElementById('sellQuantity').focus();
           });
           if (idx !== 0) {
@@ -1407,13 +1428,45 @@
         return;
       }
       
-      const dollIndex = dolls.findIndex(d => d.id === dollId);
-      if (dollIndex === -1) {
+      // 处理合并ID的情况
+      let dollIndex = -1;
+      let doll = null;
+      
+      if (dollId.includes(',')) {
+        // 如果是合并的ID，需要找到对应的娃娃
+        const dollIds = dollId.split(',');
+        // 找到第一个有足够库存的娃娃
+        for (const id of dollIds) {
+          const index = dolls.findIndex(d => d.id === id);
+          if (index !== -1 && dolls[index].quantity >= quantity) {
+            dollIndex = index;
+            doll = dolls[index];
+            break;
+          }
+        }
+        // 如果没找到有足够库存的，找第一个有库存的娃娃
+        if (dollIndex === -1) {
+          for (const id of dollIds) {
+            const index = dolls.findIndex(d => d.id === id);
+            if (index !== -1 && dolls[index].quantity > 0) {
+              dollIndex = index;
+              doll = dolls[index];
+              break;
+            }
+          }
+        }
+      } else {
+        // 单个ID的情况
+        dollIndex = dolls.findIndex(d => d.id === dollId);
+        if (dollIndex !== -1) {
+          doll = dolls[dollIndex];
+        }
+      }
+      
+      if (dollIndex === -1 || !doll) {
         showToast('错误', '所选娃娃不存在', 'error');
         return;
       }
-      
-      const doll = dolls[dollIndex];
       
       if (quantity > doll.quantity) {
         showToast('错误', `库存不足，当前库存: ${doll.quantity}`, 'error');
